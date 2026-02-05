@@ -7,7 +7,7 @@
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     
-    <!-- 1. Fix: Polyfill for process to prevent crash in third-party libs -->
+    <!-- Polyfill for process -->
     <script>
       window.process = {
         env: {
@@ -45,18 +45,10 @@
         background-color: #F8FAFC;
         font-family: 'Prompt', sans-serif;
       }
-      /* Hide scrollbar for Chrome, Safari and Opera */
-      .no-scrollbar::-webkit-scrollbar {
-          display: none;
-      }
-      /* Hide scrollbar for IE, Edge and Firefox */
-      .no-scrollbar {
-          -ms-overflow-style: none;  /* IE and Edge */
-          scrollbar-width: none;  /* Firefox */
-      }
+      .no-scrollbar::-webkit-scrollbar { display: none; }
+      .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
   
-  <!-- 2. Fix: Add react-dom/client to import map -->
   <script type="importmap">
 {
   "imports": {
@@ -76,5 +68,7 @@
 </head>
   <body>
     <div id="root"></div>
+    <!-- Added entry point script -->
+    <script type="module" src="./index.tsx"></script>
   </body>
 </html>
