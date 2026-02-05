@@ -6,6 +6,16 @@
     <title>CoInvest - Investment Tracker</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- 1. Fix: Polyfill for process to prevent crash in third-party libs -->
+    <script>
+      window.process = {
+        env: {
+          NODE_ENV: 'production'
+        }
+      };
+    </script>
+
     <script>
       tailwind.config = {
         theme: {
@@ -45,18 +55,21 @@
           scrollbar-width: none;  /* Firefox */
       }
     </style>
+  
+  <!-- 2. Fix: Add react-dom/client to import map -->
   <script type="importmap">
 {
   "imports": {
     "react": "https://esm.sh/react@18.2.0",
     "react/": "https://esm.sh/react@18.2.0/",
     "react-dom": "https://esm.sh/react-dom@18.2.0",
-    "react-dom/": "https://esm.sh/react-dom@18.2.0/",
+    "react-dom/client": "https://esm.sh/react-dom@18.2.0/client",
     "recharts": "https://esm.sh/recharts@2.12.0?external=react,react-dom",
     "lucide-react": "https://esm.sh/lucide-react@0.300.0?external=react,react-dom",
     "@google/genai": "https://esm.sh/@google/genai@0.1.1",
     "html2canvas": "https://esm.sh/html2canvas@1.4.1",
-    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3"
+    "@supabase/supabase-js": "https://esm.sh/@supabase/supabase-js@2.39.3",
+    "react-dom/": "https://esm.sh/react-dom@^19.2.4/"
   }
 }
 </script>
