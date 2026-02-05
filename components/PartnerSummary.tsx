@@ -1,5 +1,5 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { AppState, TransactionType } from '../types';
+import { AppState, TransactionType, Transaction } from '../types';
 import { Button } from './ui/Components';
 import { Download, Calendar, Wallet, TrendingUp, Loader2, FileText, PieChart, Filter, X } from 'lucide-react';
 import html2canvas from 'html2canvas';
@@ -131,7 +131,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
         if (!acc[pid]) acc[pid] = [];
         acc[pid].push(inv);
         return acc;
-      }, {} as Record<string, typeof investments>);
+      }, {} as Record<string, Transaction[]>);
 
       return {
         ...partner,
@@ -287,7 +287,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                     <div className="space-y-4">
                       {Object.entries(partner.investmentsByProject).map(([pid, invs]) => {
                          const project = data.projects.find(p => p.id === pid);
-                         const projectTotal = invs.reduce((s, i) => s + i.amount, 0);
+                         const projectTotal = (invs as Transaction[]).reduce((s, i) => s + i.amount, 0);
 
                          return (
                            <div key={pid} className="rounded-xl border border-slate-100 overflow-hidden">
@@ -299,7 +299,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                                  <span className="text-xs font-semibold text-slate-500">{formatMoney(projectTotal)}</span>
                               </div>
                               <div className="p-3 bg-white space-y-2">
-                                 {invs.map(inv => (
+                                 {(invs as Transaction[]).map(inv => (
                                    <div key={inv.id} className="flex justify-between items-baseline text-xs group">
                                       <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 flex-1 pr-4">
                                          <span className="text-slate-400 font-mono w-16 shrink-0">{formatDate(inv.date)}</span>

@@ -1,17 +1,16 @@
 import { createClient, RealtimeChannel } from '@supabase/supabase-js';
 import { AppState, Partner, Project, Transaction } from '../types';
 
-// Supabase Configuration
+// Supabase Configuration (Hardcoded for immediate use on Vercel)
 const SUPABASE_URL = "https://kpigprkxmxxtlhifzbfu.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImtwaWdwcmt4bXh4dGxoaWZ6YmZ1Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzAyNjkyMjgsImV4cCI6MjA4NTg0NTIyOH0.a2G3ap5gXZoT1Y4fCo4waNQnflYyFB19gJLVjQahuZ8";
 
-// Create a single supabase client for interacting with your database
+// Create client
 const client = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
 export const supabaseService = {
   getClient: () => client,
   
-  // Since keys are hardcoded, it's always considered connected configuration-wise
   isConnected: () => !!client,
 
   // --- Initial Load ---
@@ -26,13 +25,13 @@ export const supabaseService = {
       ]);
 
       if (partners.error || projects.error || transactions.error) {
-        // Log details to help debugging
         console.error('Supabase Error:', { 
           partners: partners.error, 
           projects: projects.error, 
           transactions: transactions.error 
         });
-        throw new Error('Error fetching data from Supabase');
+        // Don't crash, just return null so app falls back to local or shows empty
+        return null;
       }
 
       return {
@@ -74,17 +73,17 @@ export const supabaseService = {
   
   // Partners
   async addPartner(partner: Partner) {
-    if (!client) return;
+    if (!client) return { error: { message: "No Supabase client" } };
     return await client.from('partners').insert(partner);
   },
   async deletePartner(id: string) {
-    if (!client) return;
+    if (!client) return { error: { message: "No Supabase client" } };
     return await client.from('partners').delete().eq('id', id);
   },
 
   // Projects
   async addProject(project: Project) {
-    if (!client) return;
+    if (!client) return { error: { message: "No Supabase client" } };
     const dbProject = {
       id: project.id,
       name: project.name,
@@ -97,7 +96,7 @@ export const supabaseService = {
 
   // Transactions
   async addTransaction(transaction: Transaction) {
-    if (!client) return;
+    if (!client) return { error: { message: "No Supabase client" } };
     const dbTransaction = {
       id: transaction.id,
       project_id: transaction.projectId,
@@ -110,7 +109,7 @@ export const supabaseService = {
     return await client.from('transactions').insert(dbTransaction);
   },
   async deleteTransaction(id: string) {
-    if (!client) return;
+    if (!client) return { error: { message: "No Supabase client" } };
     return await client.from('transactions').delete().eq('id', id);
   }
 };

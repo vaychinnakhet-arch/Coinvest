@@ -70,18 +70,27 @@ const App: React.FC = () => {
     setData(prev => {
       let updatedList = [...prev[table]] as any[];
 
-      if (eventType === 'INSERT') {
-        // Map snake_case keys back to camelCase for specific tables if needed
-        let record = newRecord;
+      // Helper to map DB snake_case to CamelCase
+      const mapRecord = (rec: any) => {
+        if (!rec) return rec;
         if (table === 'projects') {
-            record = { ...newRecord, startDate: newRecord.start_date };
+          return { ...rec, startDate: rec.start_date || rec.startDate };
         } else if (table === 'transactions') {
-            record = { ...newRecord, projectId: newRecord.project_id, partnerId: newRecord.partner_id };
+          return { ...rec, projectId: rec.project_id || rec.projectId, partnerId: rec.partner_id || rec.partnerId };
         }
-        updatedList = [...updatedList, record];
+        return rec;
+      };
+
+      if (eventType === 'INSERT') {
+        const record = mapRecord(newRecord);
+        // CRITICAL: Check for duplicates (Optimistic UI might have already added it)
+        if (!updatedList.find(item => item.id === record.id)) {
+           updatedList = [...updatedList, record];
+        }
       } 
       else if (eventType === 'UPDATE') {
-        updatedList = updatedList.map(item => item.id === newRecord.id ? newRecord : item);
+        const record = mapRecord(newRecord);
+        updatedList = updatedList.map(item => item.id === record.id ? record : item);
       } 
       else if (eventType === 'DELETE') {
         updatedList = updatedList.filter(item => item.id !== oldRecord.id);
@@ -91,55 +100,95 @@ const App: React.FC = () => {
     });
   };
 
-  // --- Actions ---
+  // --- Actions (Optimistic UI: Update Local -> Sync Remote) ---
 
   const handleAddProject = async (project: Omit<Project, 'id'>) => {
     const newProject: Project = { ...project, id: Math.random().toString(36).substr(2, 9) };
+    
+    // 1. Optimistic Update (Show immediately)
+    setData(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
+
+    // 2. Sync to Supabase
     if (isSupabaseConnected) {
-      await supabaseService.addProject(newProject);
-    } else {
-      setData(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
+      const { error } = await supabaseService.addProject(newProject);
+      if (error) {
+        console.error("Add Project Failed:", error);
+        // Revert on error
+        setData(prev => ({ ...prev, projects: prev.projects.filter(p => p.id !== newProject.id) }));
+        alert("บันทึกข้อมูลไม่สำเร็จ: " + error.message);
+      }
     }
   };
 
   const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>) => {
     const newTransaction: Transaction = { ...transaction, id: Math.random().toString(36).substr(2, 9) };
+    
+    // 1. Optimistic Update
+    setData(prev => ({ ...prev, transactions: [...prev.transactions, newTransaction] }));
+
+    // 2. Sync to Supabase
     if (isSupabaseConnected) {
-      await supabaseService.addTransaction(newTransaction);
-    } else {
-      setData(prev => ({ ...prev, transactions: [...prev.transactions, newTransaction] }));
+      const { error } = await supabaseService.addTransaction(newTransaction);
+      if (error) {
+         console.error("Add Transaction Failed:", error);
+         setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== newTransaction.id) }));
+         alert("บันทึกข้อมูลไม่สำเร็จ: " + error.message);
+      }
     }
   };
 
   const handleDeleteTransaction = async (id: string) => {
+    // 1. Optimistic Update
+    const previousTransactions = [...data.transactions];
+    setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
+
+    // 2. Sync to Supabase
     if (isSupabaseConnected) {
-      await supabaseService.deleteTransaction(id);
-    } else {
-      setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
+      const { error } = await supabaseService.deleteTransaction(id);
+      if (error) {
+         console.error("Delete Transaction Failed:", error);
+         setData(prev => ({ ...prev, transactions: previousTransactions }));
+         alert("ลบข้อมูลไม่สำเร็จ: " + error.message);
+      }
     }
   };
 
   const handleAddPartner = async (partner: Omit<Partner, 'id'>) => {
     const newPartner: Partner = { ...partner, id: Math.random().toString(36).substr(2, 9) };
+
+    // 1. Optimistic Update
+    setData(prev => ({ ...prev, partners: [...prev.partners, newPartner] }));
+
+    // 2. Sync to Supabase
     if (isSupabaseConnected) {
-      await supabaseService.addPartner(newPartner);
-    } else {
-      setData(prev => ({ ...prev, partners: [...prev.partners, newPartner] }));
+      const { error } = await supabaseService.addPartner(newPartner);
+      if (error) {
+         console.error("Add Partner Failed:", error);
+         setData(prev => ({ ...prev, partners: prev.partners.filter(p => p.id !== newPartner.id) }));
+         alert("บันทึกข้อมูลไม่สำเร็จ: " + error.message);
+      }
     }
   };
 
   const handleDeletePartner = async (id: string) => {
-    // Basic validation: Check if partner has transactions
     const hasTransactions = data.transactions.some(t => t.partnerId === id);
     if (hasTransactions) {
       alert("ไม่สามารถลบหุ้นส่วนที่มีรายการธุรกรรมอยู่ได้");
       return;
     }
 
+    // 1. Optimistic Update
+    const previousPartners = [...data.partners];
+    setData(prev => ({ ...prev, partners: prev.partners.filter(p => p.id !== id) }));
+
+    // 2. Sync to Supabase
     if (isSupabaseConnected) {
-      await supabaseService.deletePartner(id);
-    } else {
-      setData(prev => ({ ...prev, partners: prev.partners.filter(p => p.id !== id) }));
+      const { error } = await supabaseService.deletePartner(id);
+      if (error) {
+         console.error("Delete Partner Failed:", error);
+         setData(prev => ({ ...prev, partners: previousPartners }));
+         alert("ลบข้อมูลไม่สำเร็จ: " + error.message);
+      }
     }
   };
 

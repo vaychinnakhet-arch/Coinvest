@@ -1,9 +1,8 @@
-import React, { useMemo, useState } from 'react';
+import React, { useMemo } from 'react';
 import { AppState, TransactionType } from '../types';
-import { Card, Button, Badge } from './ui/Components';
+import { Card, Badge } from './ui/Components';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, Legend } from 'recharts';
-import { DollarSign, TrendingUp, TrendingDown, Users, Sparkles, Loader2 } from 'lucide-react';
-import { analyzeFinances } from '../services/geminiService';
+import { DollarSign, TrendingUp, TrendingDown, Sparkles } from 'lucide-react';
 
 interface DashboardProps {
   data: AppState;
@@ -12,9 +11,7 @@ interface DashboardProps {
 const COLORS = ['#818CF8', '#34D399', '#F472B6', '#FBBF24', '#60A5FA'];
 
 export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
-  const [aiAnalysis, setAiAnalysis] = useState<string | null>(null);
-  const [isLoadingAi, setIsLoadingAi] = useState(false);
-
+  
   const stats = useMemo(() => {
     let totalInvestment = 0;
     let totalIncome = 0;
@@ -59,13 +56,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
     });
   }, [data]);
 
-  const handleAiAnalysis = async () => {
-    setIsLoadingAi(true);
-    const result = await analyzeFinances(data);
-    setAiAnalysis(result);
-    setIsLoadingAi(false);
-  };
-
   const formatCurrency = (val: number) => {
     return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(val);
   };
@@ -101,28 +91,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
           </span>
         </Card>
       </div>
-
-      {/* AI Section */}
-      <Card className="bg-gradient-to-r from-indigo-50 to-purple-50 border-indigo-100">
-        <div className="flex justify-between items-start">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="text-indigo-600" size={20} />
-            <h3 className="text-lg font-bold text-indigo-800">AI Financial Analyst</h3>
-          </div>
-          <Button size="sm" onClick={handleAiAnalysis} disabled={isLoadingAi} variant="primary">
-            {isLoadingAi ? <><Loader2 className="animate-spin mr-2" size={16}/> กำลังวิเคราะห์...</> : 'วิเคราะห์ข้อมูล'}
-          </Button>
-        </div>
-        {aiAnalysis ? (
-          <div className="mt-4 p-4 bg-white/80 rounded-xl border border-indigo-100 text-slate-700 whitespace-pre-line leading-relaxed">
-            {aiAnalysis}
-          </div>
-        ) : (
-          <p className="text-slate-500 text-sm mt-1">
-            กดปุ่มเพื่อใช้ AI วิเคราะห์ความคุ้มค่าและความเสี่ยงของโครงการลงทุนของคุณ
-          </p>
-        )}
-      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Project Performance Chart */}
