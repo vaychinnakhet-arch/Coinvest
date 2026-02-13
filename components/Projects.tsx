@@ -42,7 +42,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     .filter(t => t.projectId === selectedProjectId)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // Reset split state when opening form
+  // Reset split state when opening form (only for fresh add)
   useEffect(() => {
     if (!editingId) {
       setSplitAmounts({ 'POOL': '' });
@@ -67,44 +67,78 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     return (Object.values(splitAmounts) as string[]).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
   };
 
+  const handleToggleSplitMode = () => {
+    const nextState = !isSplitMode;
+    setIsSplitMode(nextState);
+    
+    // If turning ON split mode while editing, pre-fill with current values
+    if (nextState && editingId) {
+        const sourceKey = transPartner || 'POOL';
+        setSplitAmounts({ [sourceKey]: transAmount });
+    } else if (!nextState && !editingId) {
+        // Reset if turning off (and not editing)
+        setSplitAmounts({ 'POOL': '' });
+    }
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId || !transAmount) return;
 
     const totalAmount = parseFloat(transAmount);
 
+    // --- EDIT MODE HANDLER ---
     if (editingId) {
-      const sourceProject = data.projects.find(p => p.id === transPartner);
-      
-      // 1. Update the Main Transaction
-      onUpdateTransaction({
-         id: editingId,
-         projectId: selectedProjectId,
-         type: transType,
-         amount: totalAmount,
-         date: transDate,
-         note: sourceProject ? `${transNote} (แก้ไข: ดึงเงินจาก ${sourceProject.name})` : transNote,
-         partnerId: sourceProject ? undefined : (transPartner || undefined)
-      });
+      // Sub-case: Edit Mode with Split Mode Active -> Convert Single to Multiple Transactions
+      if (isSplitMode) {
+           const currentSplitTotal = calculateSplitTotal();
+           if (Math.abs(currentSplitTotal - totalAmount) > 1) {
+             alert(`ยอดรวมที่กระจาย (${currentSplitTotal.toLocaleString()}) ไม่ตรงกับยอดรายการ (${totalAmount.toLocaleString()})`);
+             return;
+           }
+           
+           if (!confirm("การเปลี่ยนเป็น 'จ่ายหลายทาง' จะทำการลบรายการเดิมและสร้างรายการย่อยใหม่ตามยอดจ่าย ยืนยันหรือไม่?")) {
+               return;
+           }
 
-      // 2. Automatic Deduction in Source Project (NEW LOGIC)
-      if (sourceProject) {
-         onAddTransaction({
-             projectId: sourceProject.id,
-             type: TransactionType.EXPENSE,
-             amount: totalAmount,
-             date: transDate,
-             note: `(ตัดยอดจากการแก้ไข) เงินถูกยืมไปโครงการ: ${selectedProject?.name} - ${transNote}`,
-             partnerId: undefined
-          });
+           // Delete the original transaction
+           onDeleteTransaction(editingId);
+           
+           // Proceed to execute the Creation Logic below (FALL THROUGH)
+      } else {
+           // Sub-case: Standard Single Edit
+           const sourceProject = data.projects.find(p => p.id === transPartner);
+    
+            // 1. Update the Main Transaction
+            onUpdateTransaction({
+               id: editingId,
+               projectId: selectedProjectId,
+               type: transType,
+               amount: totalAmount,
+               date: transDate,
+               note: sourceProject ? `${transNote} (แก้ไข: ดึงเงินจาก ${sourceProject.name})` : transNote,
+               partnerId: sourceProject ? undefined : (transPartner || undefined)
+            });
+
+            // 2. Automatic Deduction in Source Project
+            if (sourceProject) {
+               onAddTransaction({
+                   projectId: sourceProject.id,
+                   type: TransactionType.EXPENSE,
+                   amount: totalAmount,
+                   date: transDate,
+                   note: `(ตัดยอดจากการแก้ไข) เงินถูกยืมไปโครงการ: ${selectedProject?.name} - ${transNote}`,
+                   partnerId: undefined
+                });
+            }
+            
+            setEditingId(null);
+            resetForm();
+            return; // Stop here for single edit
       }
-      
-      setEditingId(null);
-      resetForm();
-      return;
     }
 
-    // --- CREATION LOGIC ---
+    // --- CREATION LOGIC (Used for New OR Edit-Split-Conversion) ---
     let sourcesToProcess: Record<string, number> = {};
 
     if (isSplitMode) {
@@ -176,6 +210,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
        }
     });
 
+    setEditingId(null);
     resetForm();
   };
 
@@ -445,19 +480,17 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                               <label className="text-sm font-medium text-slate-600">
                                 {editingId ? "แหล่งเงินที่จ่าย (แก้ไข)" : "แหล่งเงินที่จ่าย"}
                               </label>
-                              {!editingId && (
-                                <button 
-                                  type="button"
-                                  onClick={() => setIsSplitMode(!isSplitMode)}
-                                  className={`text-xs flex items-center gap-1 px-2 py-1 rounded transition-colors ${isSplitMode ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-                                >
-                                   <Split size={14}/> {isSplitMode ? 'จ่ายหลายทาง' : 'จ่ายทางเดียว'}
-                                </button>
-                              )}
+                              <button 
+                                type="button"
+                                onClick={handleToggleSplitMode}
+                                className={`text-xs flex items-center gap-1 px-2 py-1 rounded transition-colors ${isSplitMode ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                              >
+                                 <Split size={14}/> {isSplitMode ? 'จ่ายหลายทาง' : 'จ่ายทางเดียว'}
+                              </button>
                            </div>
 
-                            {/* Split Mode (Creation Only) */}
-                           {!editingId && isSplitMode ? (
+                            {/* Split Mode (Creation or Edit-Split) */}
+                           {isSplitMode ? (
                                <div className="bg-slate-50 p-3 rounded-xl space-y-2 border border-slate-200 max-h-64 overflow-y-auto custom-scrollbar">
                                   <div className="flex justify-between text-xs text-slate-500 mb-1">
                                     <span>กระจายยอดจ่าย</span>
