@@ -97,9 +97,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              return;
            }
            
-           if (!confirm("การเปลี่ยนเป็น 'จ่ายหลายทาง' จะทำการลบรายการเดิมและสร้างรายการย่อยใหม่ตามยอดจ่าย ยืนยันหรือไม่?")) {
-               return;
-           }
+           // Note: We used to ask for confirmation here, but it disrupted the flow.
+           // Now we implicitly treat "Saving with Split Mode" as an intentional conversion.
 
            // Delete the original transaction
            onDeleteTransaction(editingId);
@@ -143,6 +142,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
     if (isSplitMode) {
        const currentSplitTotal = calculateSplitTotal();
+       // Double check for creation mode as well
        if (Math.abs(currentSplitTotal - totalAmount) > 1) {
          alert(`ยอดรวมที่กระจาย (${currentSplitTotal.toLocaleString()}) ไม่ตรงกับยอดรายการ (${totalAmount.toLocaleString()})`);
          return;
