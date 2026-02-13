@@ -1,16 +1,17 @@
 import React, { useState } from 'react';
 import { AppState, Project, Transaction, TransactionType, Partner } from '../types';
 import { Card, Button, Input, Select, Badge } from './ui/Components';
-import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign } from 'lucide-react';
+import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X } from 'lucide-react';
 
 interface ProjectsProps {
   data: AppState;
   onAddProject: (p: Omit<Project, 'id'>) => void;
   onAddTransaction: (t: Omit<Transaction, 'id'>) => void;
+  onUpdateTransaction: (t: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
 }
 
-export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTransaction, onDeleteTransaction }) => {
+export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTransaction, onUpdateTransaction, onDeleteTransaction }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(data.projects.length > 0 ? data.projects[0].id : null);
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   
@@ -18,7 +19,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [newProjectName, setNewProjectName] = useState('');
   const [newProjectDesc, setNewProjectDesc] = useState('');
 
-  // New Transaction State
+  // Transaction Form State
+  const [editingId, setEditingId] = useState<string | null>(null);
   const [transType, setTransType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [transAmount, setTransAmount] = useState('');
   const [transPartner, setTransPartner] = useState('');
@@ -26,6 +28,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
 
   const selectedProject = data.projects.find(p => p.id === selectedProjectId);
+  
+  // Ensure strict date sorting (Newest -> Oldest)
   const projectTransactions = data.transactions
     .filter(t => t.projectId === selectedProjectId)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
@@ -44,22 +48,64 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setShowNewProjectForm(false);
   };
 
-  const handleCreateTransaction = (e: React.FormEvent) => {
+  const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId || !transAmount) return;
     
-    onAddTransaction({
-      projectId: selectedProjectId,
-      type: transType,
-      amount: parseFloat(transAmount),
-      date: transDate,
-      note: transNote,
-      partnerId: transPartner || undefined,
-    });
+    if (editingId) {
+      // Update Mode
+      onUpdateTransaction({
+        id: editingId,
+        projectId: selectedProjectId,
+        type: transType,
+        amount: parseFloat(transAmount),
+        date: transDate,
+        note: transNote,
+        partnerId: transPartner || undefined,
+      });
+      // Exit Edit Mode
+      setEditingId(null);
+    } else {
+      // Create Mode
+      onAddTransaction({
+        projectId: selectedProjectId,
+        type: transType,
+        amount: parseFloat(transAmount),
+        date: transDate,
+        note: transNote,
+        partnerId: transPartner || undefined,
+      });
+    }
     
-    // Reset form
+    // Reset Form common fields
     setTransAmount('');
     setTransNote('');
+    
+    // Only reset these if we were in editing mode (to clear the state), 
+    // otherwise keeping date/type/partner might be convenient for adding multiple items.
+    if (editingId) {
+      setTransType(TransactionType.EXPENSE);
+      setTransPartner('');
+      setTransDate(new Date().toISOString().split('T')[0]);
+    }
+  };
+
+  const startEditing = (t: Transaction) => {
+    setEditingId(t.id);
+    setTransType(t.type);
+    setTransAmount(t.amount.toString());
+    setTransDate(t.date);
+    setTransNote(t.note);
+    setTransPartner(t.partnerId || '');
+  };
+
+  const cancelEditing = () => {
+    setEditingId(null);
+    setTransAmount('');
+    setTransNote('');
+    setTransDate(new Date().toISOString().split('T')[0]);
+    setTransType(TransactionType.EXPENSE);
+    setTransPartner('');
   };
 
   const getTransactionColor = (type: TransactionType) => {
@@ -159,7 +205,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                         </div>
                       ) : (
                         projectTransactions.map(t => (
-                          <div key={t.id} className="flex items-center justify-between p-3 rounded-lg hover:bg-slate-50 border border-transparent hover:border-slate-100 transition-colors group">
+                          <div key={t.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors group ${editingId === t.id ? 'bg-amber-50 border-amber-200' : 'hover:bg-slate-50 border-transparent hover:border-slate-100'}`}>
                              <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getTransactionColor(t.type)}`}>
                                    {t.type === TransactionType.INCOME ? <Plus size={18}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={18}/> : <ArrowRight size={18} className="-rotate-45"/>}
@@ -169,19 +215,30 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                    <p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('th-TH')} • {data.partners.find(p => p.id === t.partnerId)?.name || 'กองกลาง'}</p>
                                 </div>
                              </div>
-                             <div className="flex items-center gap-4">
-                                <span className={`font-bold ${
+                             <div className="flex items-center gap-2">
+                                <span className={`font-bold mr-2 ${
                                   t.type === TransactionType.INCOME ? 'text-emerald-600' : 
                                   t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
                                 }`}>
                                   {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
                                 </span>
-                                <button 
-                                  onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
-                                  className="text-slate-300 hover:text-rose-500 opacity-0 group-hover:opacity-100 transition-opacity"
-                                >
-                                  <Trash2 size={16} />
-                                </button>
+                                
+                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                  <button
+                                    onClick={(e) => { e.stopPropagation(); startEditing(t); }}
+                                    className="p-1.5 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
+                                    title="แก้ไข"
+                                  >
+                                    <Pencil size={16} />
+                                  </button>
+                                  <button 
+                                    onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
+                                    className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                                    title="ลบ"
+                                  >
+                                    <Trash2 size={16} />
+                                  </button>
+                                </div>
                              </div>
                           </div>
                         ))
@@ -189,9 +246,15 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                    </div>
                 </Card>
 
-                {/* Add Transaction Form */}
-                <Card className="w-full lg:w-80 shrink-0 h-fit" title="บันทึกรายการ">
-                   <form onSubmit={handleCreateTransaction} className="flex flex-col gap-4">
+                {/* Add/Edit Transaction Form */}
+                <Card 
+                  className={`w-full lg:w-80 shrink-0 h-fit transition-colors duration-300 ${editingId ? 'ring-2 ring-amber-400 border-amber-200' : ''}`} 
+                  title={editingId ? "แก้ไขรายการ" : "บันทึกรายการ"}
+                  action={editingId && (
+                    <button onClick={cancelEditing} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
+                  )}
+                >
+                   <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
                       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
                         {[
                           { val: TransactionType.EXPENSE, label: 'รายจ่าย' },
@@ -249,9 +312,16 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                          />
                       )}
 
-                      <Button type="submit" className="w-full mt-2" disabled={!transAmount}>
-                        บันทึกรายการ
-                      </Button>
+                      <div className="flex gap-2 mt-2">
+                         {editingId && (
+                            <Button type="button" variant="secondary" className="flex-1" onClick={cancelEditing}>
+                               ยกเลิก
+                            </Button>
+                         )}
+                         <Button type="submit" className="flex-1" disabled={!transAmount}>
+                           {editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
+                         </Button>
+                      </div>
                    </form>
                 </Card>
              </div>

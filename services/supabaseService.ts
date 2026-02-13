@@ -108,6 +108,20 @@ export const supabaseService = {
     };
     return await client.from('transactions').insert(dbTransaction);
   },
+  
+  async updateTransaction(transaction: Transaction) {
+    if (!client) return { error: { message: "No Supabase client" } };
+    const dbTransaction = {
+      project_id: transaction.projectId,
+      partner_id: transaction.partnerId,
+      type: transaction.type,
+      amount: transaction.amount,
+      date: transaction.date,
+      note: transaction.note
+    };
+    return await client.from('transactions').update(dbTransaction).eq('id', transaction.id);
+  },
+
   async deleteTransaction(id: string) {
     if (!client) return { error: { message: "No Supabase client" } };
     return await client.from('transactions').delete().eq('id', id);

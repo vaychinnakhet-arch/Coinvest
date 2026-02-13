@@ -3,8 +3,9 @@ import { AppState, ViewState, Partner, Project, Transaction, TransactionType } f
 import { Dashboard } from './components/Dashboard';
 import { Projects } from './components/Projects';
 import { PartnerSummary } from './components/PartnerSummary';
+import { ProjectSummary } from './components/ProjectSummary';
 import { Settings } from './components/Settings';
-import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3 } from 'lucide-react';
 import { supabaseService } from './services/supabaseService';
 
 // Mock Data for Initial State (Fallback)
@@ -137,6 +138,25 @@ const App: React.FC = () => {
     }
   };
 
+  const handleUpdateTransaction = async (transaction: Transaction) => {
+    // 1. Optimistic Update
+    const previousTransactions = [...data.transactions];
+    setData(prev => ({
+      ...prev,
+      transactions: prev.transactions.map(t => t.id === transaction.id ? transaction : t)
+    }));
+
+    // 2. Sync to Supabase
+    if (isSupabaseConnected) {
+      const { error } = await supabaseService.updateTransaction(transaction);
+      if (error) {
+         console.error("Update Transaction Failed:", error);
+         setData(prev => ({ ...prev, transactions: previousTransactions }));
+         alert("แก้ไขข้อมูลไม่สำเร็จ: " + error.message);
+      }
+    }
+  };
+
   const handleDeleteTransaction = async (id: string) => {
     // 1. Optimistic Update
     const previousTransactions = [...data.transactions];
@@ -229,6 +249,7 @@ const App: React.FC = () => {
         <nav className="space-y-2 flex-1">
           <NavItem viewName="DASHBOARD" label="ภาพรวม" icon={LayoutDashboard} />
           <NavItem viewName="PROJECTS" label="โครงการ & บัญชี" icon={FolderKanban} />
+          <NavItem viewName="PROJECT_SUMMARY" label="สรุปภาพรวมโครงการ" icon={BarChart3} />
           <NavItem viewName="PARTNERS" label="สรุปยอดหุ้นส่วน" icon={Users} />
           
           <div className="pt-4 mt-4 border-t border-slate-100">
@@ -259,6 +280,7 @@ const App: React.FC = () => {
            <div className="flex gap-2">
              <button onClick={() => setView('DASHBOARD')} className={`p-2 rounded-lg ${view === 'DASHBOARD' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><LayoutDashboard/></button>
              <button onClick={() => setView('PROJECTS')} className={`p-2 rounded-lg ${view === 'PROJECTS' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><FolderKanban/></button>
+             <button onClick={() => setView('PROJECT_SUMMARY')} className={`p-2 rounded-lg ${view === 'PROJECT_SUMMARY' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><BarChart3/></button>
              <button onClick={() => setView('PARTNERS')} className={`p-2 rounded-lg ${view === 'PARTNERS' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><Users/></button>
              <button onClick={() => setView('SETTINGS')} className={`p-2 rounded-lg ${view === 'SETTINGS' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><SettingsIcon/></button>
            </div>
@@ -277,7 +299,10 @@ const App: React.FC = () => {
               <>
                 <div className="mb-8">
                   <h2 className="text-2xl font-bold text-slate-800">
-                    {view === 'DASHBOARD' ? 'ภาพรวมการลงทุน' : view === 'PROJECTS' ? 'จัดการโครงการ' : 'สรุปยอดหุ้นส่วน'}
+                    {view === 'DASHBOARD' ? 'ภาพรวมการลงทุน' : 
+                     view === 'PROJECTS' ? 'จัดการโครงการ' : 
+                     view === 'PROJECT_SUMMARY' ? 'สรุปภาพรวมโครงการ' :
+                     'สรุปยอดหุ้นส่วน'}
                   </h2>
                 </div>
 
@@ -287,9 +312,11 @@ const App: React.FC = () => {
                     data={data} 
                     onAddProject={handleAddProject} 
                     onAddTransaction={handleAddTransaction}
+                    onUpdateTransaction={handleUpdateTransaction}
                     onDeleteTransaction={handleDeleteTransaction}
                   />
                 )}
+                {view === 'PROJECT_SUMMARY' && <ProjectSummary data={data} />}
                 {view === 'PARTNERS' && <PartnerSummary data={data} />}
               </>
             )}
