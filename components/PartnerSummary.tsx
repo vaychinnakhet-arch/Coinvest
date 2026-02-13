@@ -87,10 +87,12 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
     }
   };
 
-  // 1. Calculate Total Pool
-  const globalTotalInvestment = data.transactions
-    .filter(t => t.type === TransactionType.INVESTMENT)
-    .reduce((sum, t) => sum + t.amount, 0);
+  // 1. Calculate Total Pool (including direct expenses paid by partners)
+  const globalTotalInvestment = data.transactions.reduce((sum, t) => {
+    if (t.type === TransactionType.INVESTMENT) return sum + t.amount;
+    if (t.type === TransactionType.EXPENSE && t.partnerId) return sum + t.amount;
+    return sum;
+  }, 0);
 
   // 2. Filter Logic
   const filteredData = useMemo(() => {
@@ -101,8 +103,11 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
 
     return targetPartners.map(partner => {
       // Filter Transactions for this partner
-      let investments = data.transactions
-        .filter(t => t.type === TransactionType.INVESTMENT && t.partnerId === partner.id);
+      // Logic: Include both explicit INVESTMENT and EXPENSE paid by partner (Direct)
+      let investments = data.transactions.filter(t => 
+        t.partnerId === partner.id && 
+        (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE)
+      );
       
       // Apply Project Filter
       if (filterProject !== 'all') {
@@ -120,7 +125,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
       
       // Ownership based on GLOBAL total
       const globalPartnerInvested = data.transactions
-        .filter(t => t.type === TransactionType.INVESTMENT && t.partnerId === partner.id)
+        .filter(t => t.partnerId === partner.id && (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE))
         .reduce((sum, t) => sum + t.amount, 0);
       
       const sharePercent = globalTotalInvestment > 0 ? (globalPartnerInvested / globalTotalInvestment) * 100 : 0;
@@ -304,6 +309,9 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                                       <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 flex-1 pr-4">
                                          <span className="text-slate-400 font-mono w-16 shrink-0">{formatDate(inv.date)}</span>
                                          <span className="text-slate-700 font-medium">{inv.note || '-'}</span>
+                                         {inv.type === TransactionType.EXPENSE && (
+                                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1 rounded">จ่ายตรง</span>
+                                         )}
                                       </div>
                                       <span className="font-semibold text-indigo-600 whitespace-nowrap">
                                         +{inv.amount.toLocaleString()}

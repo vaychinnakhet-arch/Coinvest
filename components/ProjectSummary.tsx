@@ -81,19 +81,33 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
       transactions = transactions.filter(t => t.date.startsWith(filterMonth));
     }
 
-    const income = transactions.filter(t => t.type === TransactionType.INCOME).reduce((s, t) => s + t.amount, 0);
-    const expense = transactions.filter(t => t.type === TransactionType.EXPENSE).reduce((s, t) => s + t.amount, 0);
-    const investment = transactions.filter(t => t.type === TransactionType.INVESTMENT).reduce((s, t) => s + t.amount, 0);
+    let income = 0;
+    let expense = 0;
+    let investment = 0;
+
+    transactions.forEach(t => {
+      if (t.type === TransactionType.INCOME) {
+        income += t.amount;
+      } else if (t.type === TransactionType.EXPENSE) {
+        expense += t.amount;
+        // Logic: Direct expense by partner counts as investment too
+        if (t.partnerId) {
+          investment += t.amount;
+        }
+      } else if (t.type === TransactionType.INVESTMENT) {
+        investment += t.amount;
+      }
+    });
+
     const netProfit = income - expense;
     
     // ROI Calculation (Net Profit / Investment) * 100
-    // Note: If investment is 0, ROI is 0 or infinity. Handling safely.
     const roi = investment > 0 ? (netProfit / investment) * 100 : 0;
 
     // Partner Share in THIS project
     const partnerShares = data.partners.map(p => {
       const invested = transactions
-        .filter(t => t.type === TransactionType.INVESTMENT && t.partnerId === p.id)
+        .filter(t => t.partnerId === p.id && (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE))
         .reduce((s, t) => s + t.amount, 0);
       
       return {

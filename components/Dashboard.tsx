@@ -18,9 +18,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
     let totalExpense = 0;
 
     data.transactions.forEach(t => {
-      if (t.type === TransactionType.INVESTMENT) totalInvestment += t.amount;
-      if (t.type === TransactionType.INCOME) totalIncome += t.amount;
-      if (t.type === TransactionType.EXPENSE) totalExpense += t.amount;
+      // Logic: Investment is explicit INVESTMENT OR EXPENSE paid by a partner
+      if (t.type === TransactionType.INVESTMENT) {
+        totalInvestment += t.amount;
+      } else if (t.type === TransactionType.EXPENSE) {
+        totalExpense += t.amount;
+        if (t.partnerId) {
+          totalInvestment += t.amount; // Direct payment counts as investment
+        }
+      } else if (t.type === TransactionType.INCOME) {
+        totalIncome += t.amount;
+      }
     });
 
     return { totalInvestment, totalIncome, totalExpense, netProfit: totalIncome - totalExpense };
@@ -28,12 +36,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
 
   const partnerInvestments = useMemo(() => {
     const map = new Map<string, number>();
-    data.transactions
-      .filter(t => t.type === TransactionType.INVESTMENT && t.partnerId)
-      .forEach(t => {
-        const current = map.get(t.partnerId!) || 0;
-        map.set(t.partnerId!, current + t.amount);
-      });
+    data.transactions.forEach(t => {
+      // Check if this transaction counts as an investment
+      if (t.partnerId) {
+        if (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE) {
+          const current = map.get(t.partnerId) || 0;
+          map.set(t.partnerId, current + t.amount);
+        }
+      }
+    });
 
     return data.partners.map(p => ({
       name: p.name,

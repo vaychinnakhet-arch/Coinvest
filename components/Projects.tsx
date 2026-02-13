@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { AppState, Project, Transaction, TransactionType, Partner } from '../types';
 import { Card, Button, Input, Select, Badge } from './ui/Components';
-import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X } from 'lucide-react';
+import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet } from 'lucide-react';
 
 interface ProjectsProps {
   data: AppState;
@@ -23,7 +23,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [editingId, setEditingId] = useState<string | null>(null);
   const [transType, setTransType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [transAmount, setTransAmount] = useState('');
-  const [transPartner, setTransPartner] = useState('');
+  const [transPartner, setTransPartner] = useState(''); // Empty = Central Pool, ID = Specific Partner
   const [transNote, setTransNote] = useState('');
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
 
@@ -52,37 +52,32 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     e.preventDefault();
     if (!selectedProjectId || !transAmount) return;
     
+    // Logic: If Expense + Partner Selected -> It means Partner paid directly (Direct Expense)
+    // Logic: If Expense + No Partner -> Paid from Central Pool
+    
+    const payload = {
+      projectId: selectedProjectId,
+      type: transType,
+      amount: parseFloat(transAmount),
+      date: transDate,
+      note: transNote,
+      // If Investment/Withdrawal -> Partner is mandatory (enforced by UI validation usually)
+      // If Expense -> Partner is optional (Specific Partner vs Central Pool)
+      partnerId: transPartner || undefined, 
+    };
+
     if (editingId) {
-      // Update Mode
-      onUpdateTransaction({
-        id: editingId,
-        projectId: selectedProjectId,
-        type: transType,
-        amount: parseFloat(transAmount),
-        date: transDate,
-        note: transNote,
-        partnerId: transPartner || undefined,
-      });
-      // Exit Edit Mode
+      onUpdateTransaction({ ...payload, id: editingId });
       setEditingId(null);
     } else {
-      // Create Mode
-      onAddTransaction({
-        projectId: selectedProjectId,
-        type: transType,
-        amount: parseFloat(transAmount),
-        date: transDate,
-        note: transNote,
-        partnerId: transPartner || undefined,
-      });
+      onAddTransaction(payload);
     }
     
     // Reset Form common fields
     setTransAmount('');
     setTransNote('');
     
-    // Only reset these if we were in editing mode (to clear the state), 
-    // otherwise keeping date/type/partner might be convenient for adding multiple items.
+    // Only reset these if NOT editing (keep context for faster entry)
     if (editingId) {
       setTransType(TransactionType.EXPENSE);
       setTransPartner('');
@@ -96,7 +91,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransAmount(t.amount.toString());
     setTransDate(t.date);
     setTransNote(t.note);
-    setTransPartner(t.partnerId || '');
+    setTransPartner(t.partnerId || ''); // If undefined, set to empty (Central Pool)
   };
 
   const cancelEditing = () => {
@@ -115,6 +110,14 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       case TransactionType.INVESTMENT: return 'text-indigo-600 bg-indigo-50';
       default: return 'text-slate-600 bg-slate-50';
     }
+  };
+
+  // Helper to determine label for Partner Select
+  const getPartnerSelectLabel = () => {
+    if (transType === TransactionType.EXPENSE) return "จ่ายโดย (Paid By)";
+    if (transType === TransactionType.INCOME) return "เก็บเงินไว้ที่ (Kept By)";
+    if (transType === TransactionType.INVESTMENT) return "หุ้นส่วนที่ลงทุน";
+    return "หุ้นส่วน";
   };
 
   return (
@@ -204,15 +207,35 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                           <p>ยังไม่มีรายการบันทึก</p>
                         </div>
                       ) : (
-                        projectTransactions.map(t => (
+                        projectTransactions.map(t => {
+                          const partner = data.partners.find(p => p.id === t.partnerId);
+                          const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
+                          
+                          return (
                           <div key={t.id} className={`flex items-center justify-between p-3 rounded-lg border transition-colors group ${editingId === t.id ? 'bg-amber-50 border-amber-200' : 'hover:bg-slate-50 border-transparent hover:border-slate-100'}`}>
                              <div className="flex items-center gap-3">
                                 <div className={`w-10 h-10 rounded-full flex items-center justify-center ${getTransactionColor(t.type)}`}>
                                    {t.type === TransactionType.INCOME ? <Plus size={18}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={18}/> : <ArrowRight size={18} className="-rotate-45"/>}
                                 </div>
                                 <div>
-                                   <p className="font-medium text-slate-700">{t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}</p>
-                                   <p className="text-xs text-slate-400">{new Date(t.date).toLocaleDateString('th-TH')} • {data.partners.find(p => p.id === t.partnerId)?.name || 'กองกลาง'}</p>
+                                   <div className="flex items-center gap-2">
+                                     <p className="font-medium text-slate-700">{t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}</p>
+                                     {isDirectPayment && (
+                                       <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">จ่ายโดยตรง</span>
+                                     )}
+                                   </div>
+                                   <p className="text-xs text-slate-400 flex items-center gap-1">
+                                     {new Date(t.date).toLocaleDateString('th-TH')} • 
+                                     {partner ? (
+                                        <span className="flex items-center gap-1">
+                                          <User size={10}/> {partner.name}
+                                        </span>
+                                     ) : (
+                                        <span className="flex items-center gap-1">
+                                          <Wallet size={10}/> กองกลาง
+                                        </span>
+                                     )}
+                                   </p>
                                 </div>
                              </div>
                              <div className="flex items-center gap-2">
@@ -241,7 +264,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                 </div>
                              </div>
                           </div>
-                        ))
+                        )})
                       )}
                    </div>
                 </Card>
@@ -299,17 +322,23 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                         onChange={e => setTransNote(e.target.value)}
                       />
 
-                      {(transType === TransactionType.INVESTMENT || transType === TransactionType.WITHDRAWAL) && (
-                         <Select 
-                           label="หุ้นส่วน (ผู้จ่าย)"
-                           options={[
-                             { value: '', label: '-- เลือกหุ้นส่วน --' },
-                             ...data.partners.map(p => ({ value: p.id, label: p.name }))
-                           ]}
-                           value={transPartner}
-                           onChange={e => setTransPartner(e.target.value)}
-                           required={transType === TransactionType.INVESTMENT}
-                         />
+                      {/* Partner Select - Always Visible now, but behavior depends on Type */}
+                      <Select 
+                        label={getPartnerSelectLabel()}
+                        options={[
+                          { value: '', label: transType === TransactionType.INVESTMENT ? '-- เลือกหุ้นส่วน --' : 'กองกลาง (Central Pool)' },
+                          ...data.partners.map(p => ({ value: p.id, label: p.name }))
+                        ]}
+                        value={transPartner}
+                        onChange={e => setTransPartner(e.target.value)}
+                        required={transType === TransactionType.INVESTMENT} 
+                        className={transPartner === '' && transType === TransactionType.EXPENSE ? 'text-slate-500 italic' : ''}
+                      />
+                      
+                      {transType === TransactionType.EXPENSE && transPartner && (
+                        <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 flex items-center gap-1">
+                          <DollarSign size={12}/> ระบบจะนับเป็นเงินลงทุนเพิ่มของหุ้นส่วนโดยอัตโนมัติ
+                        </div>
                       )}
 
                       <div className="flex gap-2 mt-2">
