@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { AppState, Project, Transaction, TransactionType, Partner } from '../types';
 import { Card, Button, Input, Select, Badge } from './ui/Components';
-import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet } from 'lucide-react';
+import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2 } from 'lucide-react';
 
 interface ProjectsProps {
   data: AppState;
@@ -23,16 +23,31 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [editingId, setEditingId] = useState<string | null>(null);
   const [transType, setTransType] = useState<TransactionType>(TransactionType.EXPENSE);
   const [transAmount, setTransAmount] = useState('');
-  const [transPartner, setTransPartner] = useState(''); // Empty = Central Pool, ID = Specific Partner
+  const [transPartner, setTransPartner] = useState(''); // Empty = Central Pool, ID = Partner OR ProjectID (for cross-project)
   const [transNote, setTransNote] = useState('');
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
 
+  // Split Payment State
+  const [isSplitMode, setIsSplitMode] = useState(false);
+  // Dictionary to hold amount per source: key = 'POOL' | partnerId | projectId, value = amount string
+  const [splitAmounts, setSplitAmounts] = useState<Record<string, string>>({});
+
   const selectedProject = data.projects.find(p => p.id === selectedProjectId);
+  
+  // Filter other projects (to use as funding source)
+  const otherProjects = data.projects.filter(p => p.id !== selectedProjectId);
   
   // Ensure strict date sorting (Newest -> Oldest)
   const projectTransactions = data.transactions
     .filter(t => t.projectId === selectedProjectId)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+  // Reset split state when opening form
+  useEffect(() => {
+    if (!editingId) {
+      setSplitAmounts({ 'POOL': '' });
+    }
+  }, [editingId]);
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -48,40 +63,131 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setShowNewProjectForm(false);
   };
 
+  const calculateSplitTotal = () => {
+    return (Object.values(splitAmounts) as string[]).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
+  };
+
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedProjectId || !transAmount) return;
-    
-    // Logic: If Expense + Partner Selected -> It means Partner paid directly (Direct Expense)
-    // Logic: If Expense + No Partner -> Paid from Central Pool
-    
-    const payload = {
-      projectId: selectedProjectId,
-      type: transType,
-      amount: parseFloat(transAmount),
-      date: transDate,
-      note: transNote,
-      // If Investment/Withdrawal -> Partner is mandatory (enforced by UI validation usually)
-      // If Expense -> Partner is optional (Specific Partner vs Central Pool)
-      partnerId: transPartner || undefined, 
-    };
+
+    const totalAmount = parseFloat(transAmount);
 
     if (editingId) {
-      onUpdateTransaction({ ...payload, id: editingId });
+      const sourceProject = data.projects.find(p => p.id === transPartner);
+      
+      // 1. Update the Main Transaction
+      onUpdateTransaction({
+         id: editingId,
+         projectId: selectedProjectId,
+         type: transType,
+         amount: totalAmount,
+         date: transDate,
+         note: sourceProject ? `${transNote} (แก้ไข: ดึงเงินจาก ${sourceProject.name})` : transNote,
+         partnerId: sourceProject ? undefined : (transPartner || undefined)
+      });
+
+      // 2. Automatic Deduction in Source Project (NEW LOGIC)
+      if (sourceProject) {
+         onAddTransaction({
+             projectId: sourceProject.id,
+             type: TransactionType.EXPENSE,
+             amount: totalAmount,
+             date: transDate,
+             note: `(ตัดยอดจากการแก้ไข) เงินถูกยืมไปโครงการ: ${selectedProject?.name} - ${transNote}`,
+             partnerId: undefined
+          });
+      }
+      
       setEditingId(null);
-    } else {
-      onAddTransaction(payload);
+      resetForm();
+      return;
     }
-    
-    // Reset Form common fields
+
+    // --- CREATION LOGIC ---
+    let sourcesToProcess: Record<string, number> = {};
+
+    if (isSplitMode) {
+       const currentSplitTotal = calculateSplitTotal();
+       if (Math.abs(currentSplitTotal - totalAmount) > 1) {
+         alert(`ยอดรวมที่กระจาย (${currentSplitTotal.toLocaleString()}) ไม่ตรงกับยอดรายการ (${totalAmount.toLocaleString()})`);
+         return;
+       }
+       (Object.entries(splitAmounts) as [string, string][]).forEach(([key, val]) => {
+          const amt = parseFloat(val);
+          if (amt > 0) sourcesToProcess[key] = amt;
+       });
+    } else {
+       const sourceKey = transPartner || 'POOL';
+       sourcesToProcess[sourceKey] = totalAmount;
+    }
+
+    // Process all sources
+    Object.entries(sourcesToProcess).forEach(([sourceKey, amount]) => {
+       const isPartner = data.partners.some(p => p.id === sourceKey);
+       const isProject = data.projects.some(p => p.id === sourceKey);
+       
+       if (isProject) {
+          // CASE 1: Cross-Project Funding
+          const sourceProj = data.projects.find(p => p.id === sourceKey);
+          
+          // 1.1 Record Expense in Current Project
+          onAddTransaction({
+             projectId: selectedProjectId,
+             type: TransactionType.EXPENSE,
+             amount: amount,
+             date: transDate,
+             note: `${transNote} (ดึงเงินจากโครงการ: ${sourceProj?.name})`,
+             partnerId: undefined
+          });
+
+          // 1.2 Automatically Record Deduction in Source Project
+          onAddTransaction({
+             projectId: sourceKey,
+             type: TransactionType.EXPENSE,
+             amount: amount,
+             date: transDate,
+             note: `(นำเงินไปหมุนให้โครงการ: ${selectedProject?.name}) ${transNote}`,
+             partnerId: undefined
+          });
+
+       } else if (isPartner) {
+          // CASE 2: Partner Paid (Investment)
+          const partnerName = data.partners.find(p => p.id === sourceKey)?.name;
+          onAddTransaction({
+             projectId: selectedProjectId,
+             type: TransactionType.EXPENSE,
+             amount: amount,
+             date: transDate,
+             note: isSplitMode ? `${transNote} (จ่ายโดย ${partnerName})` : transNote,
+             partnerId: sourceKey
+          });
+
+       } else {
+          // CASE 3: Central Pool
+          onAddTransaction({
+             projectId: selectedProjectId,
+             type: TransactionType.EXPENSE,
+             amount: amount,
+             date: transDate,
+             note: isSplitMode ? `${transNote} (กองกลาง)` : transNote,
+             partnerId: undefined
+          });
+       }
+    });
+
+    resetForm();
+  };
+
+  const resetForm = () => {
     setTransAmount('');
     setTransNote('');
-    
-    // Only reset these if NOT editing (keep context for faster entry)
+    setSplitAmounts({});
     if (editingId) {
       setTransType(TransactionType.EXPENSE);
       setTransPartner('');
       setTransDate(new Date().toISOString().split('T')[0]);
+      setIsSplitMode(false);
     }
   };
 
@@ -91,16 +197,14 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransAmount(t.amount.toString());
     setTransDate(t.date);
     setTransNote(t.note);
-    setTransPartner(t.partnerId || ''); // If undefined, set to empty (Central Pool)
+    setTransPartner(t.partnerId || '');
+    setIsSplitMode(false); 
   };
 
   const cancelEditing = () => {
     setEditingId(null);
-    setTransAmount('');
-    setTransNote('');
-    setTransDate(new Date().toISOString().split('T')[0]);
-    setTransType(TransactionType.EXPENSE);
-    setTransPartner('');
+    resetForm();
+    setIsSplitMode(false);
   };
 
   const getTransactionColor = (type: TransactionType) => {
@@ -112,13 +216,19 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     }
   };
 
-  // Helper to determine label for Partner Select
-  const getPartnerSelectLabel = () => {
-    if (transType === TransactionType.EXPENSE) return "จ่ายโดย (Paid By)";
-    if (transType === TransactionType.INCOME) return "เก็บเงินไว้ที่ (Kept By)";
-    if (transType === TransactionType.INVESTMENT) return "หุ้นส่วนที่ลงทุน";
-    return "หุ้นส่วน";
-  };
+  // Build Options for Single Select
+  const sourceOptions = [
+    { value: '', label: 'กองกลาง (Central Pool)' },
+    { label: '--- หุ้นส่วน (Partners) ---', value: 'disabled_1', disabled: true },
+    ...data.partners.map(p => ({ value: p.id, label: `👤 ${p.name}` })),
+  ];
+  
+  if (otherProjects.length > 0) {
+    sourceOptions.push({ label: '--- โครงการอื่น (Cross-Project) ---', value: 'disabled_2', disabled: true });
+    otherProjects.forEach(p => {
+      sourceOptions.push({ value: p.id, label: `🏢 ${p.name}` });
+    });
+  }
 
   return (
     <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
@@ -221,7 +331,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                    <div className="flex items-center gap-2">
                                      <p className="font-medium text-slate-700">{t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}</p>
                                      {isDirectPayment && (
-                                       <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">จ่ายโดยตรง</span>
+                                       <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200">จ่ายตรง</span>
                                      )}
                                    </div>
                                    <p className="text-xs text-slate-400 flex items-center gap-1">
@@ -278,6 +388,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                   )}
                 >
                    <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
+                      {/* Transaction Type Tabs */}
                       <div className="flex gap-2 p-1 bg-slate-100 rounded-xl">
                         {[
                           { val: TransactionType.EXPENSE, label: 'รายจ่าย' },
@@ -287,7 +398,10 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                           <button
                             key={type.val}
                             type="button"
-                            onClick={() => setTransType(type.val as TransactionType)}
+                            onClick={() => {
+                               setTransType(type.val as TransactionType);
+                               if (type.val !== TransactionType.EXPENSE) setIsSplitMode(false);
+                            }}
                             className={`flex-1 py-1.5 text-sm font-medium rounded-lg transition-all ${
                               transType === type.val ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                             }`}
@@ -297,10 +411,11 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                         ))}
                       </div>
 
+                      {/* Amount and Date */}
                       <Input 
                         type="number" 
                         placeholder="0.00" 
-                        label="จำนวนเงิน (THB)"
+                        label="จำนวนเงินรวม (THB)"
                         value={transAmount}
                         onChange={e => setTransAmount(e.target.value)}
                         required
@@ -322,25 +437,148 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                         onChange={e => setTransNote(e.target.value)}
                       />
 
-                      {/* Partner Select - Always Visible now, but behavior depends on Type */}
-                      <Select 
-                        label={getPartnerSelectLabel()}
-                        options={[
-                          { value: '', label: transType === TransactionType.INVESTMENT ? '-- เลือกหุ้นส่วน --' : 'กองกลาง (Central Pool)' },
-                          ...data.partners.map(p => ({ value: p.id, label: p.name }))
-                        ]}
-                        value={transPartner}
-                        onChange={e => setTransPartner(e.target.value)}
-                        required={transType === TransactionType.INVESTMENT} 
-                        className={transPartner === '' && transType === TransactionType.EXPENSE ? 'text-slate-500 italic' : ''}
-                      />
-                      
-                      {transType === TransactionType.EXPENSE && transPartner && (
-                        <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 flex items-center gap-1">
-                          <DollarSign size={12}/> ระบบจะนับเป็นเงินลงทุนเพิ่มของหุ้นส่วนโดยอัตโนมัติ
-                        </div>
-                      )}
+                      {/* Payment Source Logic */}
+                      {transType === TransactionType.EXPENSE ? (
+                         <div className="flex flex-col gap-1.5 w-full">
+                           {/* Label & Toggle */}
+                           <div className="flex justify-between items-center">
+                              <label className="text-sm font-medium text-slate-600">
+                                {editingId ? "แหล่งเงินที่จ่าย (แก้ไข)" : "แหล่งเงินที่จ่าย"}
+                              </label>
+                              {!editingId && (
+                                <button 
+                                  type="button"
+                                  onClick={() => setIsSplitMode(!isSplitMode)}
+                                  className={`text-xs flex items-center gap-1 px-2 py-1 rounded transition-colors ${isSplitMode ? 'bg-indigo-100 text-indigo-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+                                >
+                                   <Split size={14}/> {isSplitMode ? 'จ่ายหลายทาง' : 'จ่ายทางเดียว'}
+                                </button>
+                              )}
+                           </div>
 
+                            {/* Split Mode (Creation Only) */}
+                           {!editingId && isSplitMode ? (
+                               <div className="bg-slate-50 p-3 rounded-xl space-y-2 border border-slate-200 max-h-64 overflow-y-auto custom-scrollbar">
+                                  <div className="flex justify-between text-xs text-slate-500 mb-1">
+                                    <span>กระจายยอดจ่าย</span>
+                                    <span className={calculateSplitTotal() === parseFloat(transAmount || '0') ? 'text-emerald-600' : 'text-rose-500'}>
+                                      รวม: {calculateSplitTotal().toLocaleString()} / {parseFloat(transAmount || '0').toLocaleString()}
+                                    </span>
+                                  </div>
+                                  
+                                  {/* Central Pool Input */}
+                                  <div className="flex items-center gap-2">
+                                     <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-600 shrink-0"><Wallet size={14}/></div>
+                                     <span className="text-xs font-medium text-slate-600 flex-1">กองกลาง</span>
+                                     <input 
+                                       type="number" 
+                                       placeholder="0"
+                                       className="w-24 px-2 py-1 text-sm rounded border border-slate-200 text-right"
+                                       value={splitAmounts['POOL'] || ''}
+                                       onChange={e => setSplitAmounts(prev => ({...prev, 'POOL': e.target.value}))}
+                                     />
+                                  </div>
+
+                                  {/* Partners Input */}
+                                  {data.partners.map(p => (
+                                    <div key={p.id} className="flex items-center gap-2">
+                                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-xs text-white shrink-0" style={{background: p.color}}>
+                                        {p.avatar}
+                                      </div>
+                                      <span className="text-xs font-medium text-slate-600 flex-1">{p.name}</span>
+                                      <input 
+                                        type="number" 
+                                        placeholder="0"
+                                        className="w-24 px-2 py-1 text-sm rounded border border-slate-200 text-right"
+                                        value={splitAmounts[p.id] || ''}
+                                        onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
+                                      />
+                                    </div>
+                                  ))}
+                                  
+                                  {/* Other Projects Input */}
+                                  {otherProjects.length > 0 && (
+                                     <>
+                                      <div className="text-[10px] text-slate-400 font-bold mt-2 pt-2 border-t border-slate-200">โครงการอื่น (Cross-Project)</div>
+                                      {otherProjects.map(p => (
+                                        <div key={p.id} className="flex items-center gap-2">
+                                          <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                                            <Building2 size={14}/>
+                                          </div>
+                                          <span className="text-xs font-medium text-slate-600 flex-1 truncate">{p.name}</span>
+                                          <input 
+                                            type="number" 
+                                            placeholder="0"
+                                            className="w-24 px-2 py-1 text-sm rounded border border-slate-200 text-right"
+                                            value={splitAmounts[p.id] || ''}
+                                            onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
+                                          />
+                                        </div>
+                                      ))}
+                                     </>
+                                  )}
+
+                                  {Math.abs(calculateSplitTotal() - parseFloat(transAmount || '0')) > 1 && (
+                                     <div className="text-xs text-rose-500 flex items-center gap-1 mt-2">
+                                        <AlertCircle size={12}/> ยอดรวมยังไม่ตรงกับจำนวนเงิน
+                                     </div>
+                                  )}
+                               </div>
+                           ) : (
+                               // ... Single Select UI (Used for both Creation Single and Editing) ...
+                               <div className="space-y-2">
+                                 <select
+                                     className={`w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all outline-none text-slate-800 ${transPartner === '' ? 'text-indigo-600 font-medium' : ''}`}
+                                     value={transPartner}
+                                     onChange={e => setTransPartner(e.target.value)}
+                                   >
+                                     {sourceOptions.map((opt, idx) => (
+                                       <option key={idx} value={opt.value} disabled={opt.disabled}>
+                                         {opt.label}
+                                       </option>
+                                     ))}
+                                 </select>
+                                 {/* Helper Texts */}
+                                 {transPartner === '' && (
+                                   <p className="text-[10px] text-slate-400 pl-1">
+                                     *ใช้เงินจากกองกลาง
+                                   </p>
+                                 )}
+                                 {data.projects.find(p => p.id === transPartner) && (
+                                   <div className="pl-1">
+                                      <p className="text-[10px] text-indigo-500">
+                                        *ดึงเงินจากโครงการ {data.projects.find(p => p.id === transPartner)?.name}
+                                      </p>
+                                      {editingId && (
+                                          <p className="text-[10px] text-emerald-600 flex items-center gap-1">
+                                            <CheckCircle2 size={10}/> ระบบจะสร้างรายการตัดยอดในโครงการต้นทางให้อัตโนมัติเมื่อบันทึก
+                                          </p>
+                                      )}
+                                   </div>
+                                 )}
+                                 {!isSplitMode && !editingId && data.partners.find(p => p.id === transPartner) && (
+                                    <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 flex items-center gap-1">
+                                      <DollarSign size={12}/> ระบบจะนับเป็นเงินลงทุนเพิ่มของหุ้นส่วนโดยอัตโนมัติ
+                                    </div>
+                                 )}
+                               </div>
+                           )}
+                         </div>
+                      ) : (
+                         /* Select for other types */
+                         <Select 
+                           label={transType === TransactionType.INVESTMENT ? "หุ้นส่วนที่ลงทุน" : transType === TransactionType.INCOME ? "เก็บเงินไว้ที่" : "หุ้นส่วน"}
+                           options={[
+                             { value: '', label: transType === TransactionType.INVESTMENT ? '-- เลือกหุ้นส่วน --' : 'กองกลาง (Central Pool)' },
+                             ...data.partners.map(p => ({ value: p.id, label: p.name }))
+                           ]}
+                           value={transPartner}
+                           onChange={e => setTransPartner(e.target.value)}
+                           required={transType === TransactionType.INVESTMENT} 
+                           className={transPartner === '' ? 'text-slate-500 italic' : ''}
+                         />
+                      )}
+                      
                       <div className="flex gap-2 mt-2">
                          {editingId && (
                             <Button type="button" variant="secondary" className="flex-1" onClick={cancelEditing}>

@@ -1,7 +1,7 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { AppState, TransactionType, Transaction } from '../types';
 import { Button, Badge } from './ui/Components';
-import { Download, Filter, X, Building2, TrendingUp, TrendingDown, DollarSign, PieChart as PieIcon, Calendar, Loader2 } from 'lucide-react';
+import { Download, Filter, X, Building2, TrendingUp, TrendingDown, DollarSign, PieChart as PieIcon, Calendar, Loader2, ArrowRightLeft, ArrowRight } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
 import html2canvas from 'html2canvas';
 
@@ -70,9 +70,11 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
     }
   };
 
+  const selectedProject = data.projects.find(p => p.id === selectedProjectId);
+
   // --- Calculation Logic ---
   const stats = useMemo(() => {
-    if (!selectedProjectId) return null;
+    if (!selectedProjectId || !selectedProject) return null;
 
     let transactions = data.transactions.filter(t => t.projectId === selectedProjectId);
 
@@ -100,9 +102,50 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
     });
 
     const netProfit = income - expense;
-    
-    // ROI Calculation (Net Profit / Investment) * 100
     const roi = investment > 0 ? (netProfit / investment) * 100 : 0;
+
+    // --- Inter-Project Loan Logic (All Time, ignoring Month Filter for accuracy of Debt) ---
+    const loansGiven: { targetName: string, amount: number }[] = [];
+    const loansTaken: { sourceName: string, amount: number }[] = [];
+
+    // Helper regex to extract project name from note
+    // Matches: "(นำเงินไปหมุนให้โครงการ: X)" OR "(ตัดยอดจากการแก้ไข) เงินถูกยืมไปโครงการ: X -"
+    const extractProjectName = (note: string): string | null => {
+        const regex = /(?:นำเงินไปหมุนให้โครงการ:|เงินถูกยืมไปโครงการ:)\s*([^\)-]+)/;
+        const match = note.match(regex);
+        return match && match[1] ? match[1].trim() : null;
+    };
+
+    // 1. Calculate Loans Given (We lent money OUT)
+    // Look at THIS project's expenses with specific note pattern
+    data.transactions
+      .filter(t => t.projectId === selectedProjectId && t.type === TransactionType.EXPENSE)
+      .forEach(t => {
+         const targetName = extractProjectName(t.note);
+         if (targetName) {
+            const existing = loansGiven.find(l => l.targetName === targetName);
+            if (existing) existing.amount += t.amount;
+            else loansGiven.push({ targetName, amount: t.amount });
+         }
+      });
+
+    // 2. Calculate Loans Taken (We borrowed money IN)
+    // Look at OTHER projects' expenses with note pointing to US
+    data.transactions
+      .filter(t => t.projectId !== selectedProjectId && t.type === TransactionType.EXPENSE)
+      .forEach(t => {
+         const targetName = extractProjectName(t.note);
+         // If the target matches THIS project name
+         if (targetName === selectedProject.name) {
+            const sourceProject = data.projects.find(p => p.id === t.projectId);
+            if (sourceProject) {
+               const existing = loansTaken.find(l => l.sourceName === sourceProject.name);
+               if (existing) existing.amount += t.amount;
+               else loansTaken.push({ sourceName: sourceProject.name, amount: t.amount });
+            }
+         }
+      });
+
 
     // Partner Share in THIS project
     const partnerShares = data.partners.map(p => {
@@ -128,11 +171,11 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
       roi,
       partnerShares,
       recentTx,
-      count: transactions.length
+      count: transactions.length,
+      loansGiven,
+      loansTaken
     };
-  }, [data, selectedProjectId, filterMonth]);
-
-  const selectedProject = data.projects.find(p => p.id === selectedProjectId);
+  }, [data, selectedProjectId, filterMonth, selectedProject]);
 
   if (!selectedProject) {
     return (
@@ -260,6 +303,72 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                   )}
                </div>
             </div>
+          )}
+
+          {/* Cross-Project Balance Section (NEW) */}
+          {stats && (stats.loansGiven.length > 0 || stats.loansTaken.length > 0) && (
+             <div className="mb-8 p-6 bg-slate-100 rounded-3xl border border-slate-200">
+                <div className="flex items-center gap-2 mb-4 text-slate-700">
+                  <ArrowRightLeft size={20} className="text-indigo-500"/>
+                  <h3 className="font-bold text-lg">ธุรกรรมระหว่างโครงการ (Cross-Project Balance)</h3>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-6">
+                   {/* Loans Given (Assets) */}
+                   <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                      <h4 className="text-sm font-bold text-emerald-600 mb-3 flex items-center gap-2">
+                         <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
+                         เงินที่ให้โครงการอื่นยืม (ลูกหนี้)
+                      </h4>
+                      {stats.loansGiven.length > 0 ? (
+                         <div className="space-y-2">
+                           {stats.loansGiven.map((item, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-xl">
+                                 <div className="flex items-center gap-2">
+                                    <span className="text-slate-400"><ArrowRight size={14}/></span>
+                                    <span className="font-medium text-slate-700">{item.targetName}</span>
+                                 </div>
+                                 <span className="font-bold text-emerald-600">{formatMoney(item.amount)}</span>
+                              </div>
+                           ))}
+                           <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between text-sm">
+                              <span className="font-bold text-slate-500">รวม</span>
+                              <span className="font-bold text-slate-800">{formatMoney(stats.loansGiven.reduce((s,i)=>s+i.amount,0))}</span>
+                           </div>
+                         </div>
+                      ) : (
+                         <p className="text-xs text-slate-400 italic">ไม่มีรายการ</p>
+                      )}
+                   </div>
+
+                   {/* Loans Taken (Liabilities) */}
+                   <div className="bg-white p-4 rounded-2xl border border-slate-200">
+                      <h4 className="text-sm font-bold text-rose-500 mb-3 flex items-center gap-2">
+                         <div className="w-2 h-2 rounded-full bg-rose-500"></div>
+                         เงินที่ยืมโครงการอื่นมา (เจ้าหนี้)
+                      </h4>
+                      {stats.loansTaken.length > 0 ? (
+                         <div className="space-y-2">
+                           {stats.loansTaken.map((item, idx) => (
+                              <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-xl">
+                                 <div className="flex items-center gap-2">
+                                    <span className="text-slate-400 rotate-180"><ArrowRight size={14}/></span>
+                                    <span className="font-medium text-slate-700">{item.sourceName}</span>
+                                 </div>
+                                 <span className="font-bold text-rose-500">{formatMoney(item.amount)}</span>
+                              </div>
+                           ))}
+                           <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between text-sm">
+                              <span className="font-bold text-slate-500">รวม</span>
+                              <span className="font-bold text-slate-800">{formatMoney(stats.loansTaken.reduce((s,i)=>s+i.amount,0))}</span>
+                           </div>
+                         </div>
+                      ) : (
+                         <p className="text-xs text-slate-400 italic">ไม่มีรายการ</p>
+                      )}
+                   </div>
+                </div>
+             </div>
           )}
 
           <div className="grid grid-cols-3 gap-6">
