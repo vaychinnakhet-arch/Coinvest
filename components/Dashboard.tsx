@@ -74,7 +74,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
   return (
     <div className="space-y-6">
       {/* Header Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="flex flex-col">
           <span className="text-slate-500 text-sm font-medium mb-1 flex items-center gap-2">
             <DollarSign size={16} /> เงินลงทุนรวม
@@ -105,7 +105,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         {/* Project Performance Chart */}
-        <Card title="ประสิทธิภาพแต่ละโครงการ" className="h-96">
+        <Card title="ประสิทธิภาพแต่ละโครงการ" className="h-80 md:h-96 min-h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <BarChart data={projectPerformance} margin={{ top: 20, right: 30, left: 20, bottom: 5 }}>
               <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} />
@@ -123,7 +123,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
         </Card>
 
         {/* Partner Investment Distribution */}
-        <Card title="สัดส่วนเงินลงทุน" className="h-96">
+        <Card title="สัดส่วนเงินลงทุน" className="h-80 md:h-96 min-h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <PieChart>
               <Pie
@@ -131,7 +131,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
                 cx="50%"
                 cy="50%"
                 innerRadius={60}
-                outerRadius={100}
+                outerRadius={80}
                 paddingAngle={5}
                 dataKey="value"
               >
@@ -149,7 +149,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
       {/* Partner Breakdown Table */}
       <Card title="รายละเอียดหุ้นส่วน">
         <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
+          <table className="w-full text-left border-collapse whitespace-nowrap">
             <thead>
               <tr className="text-slate-500 text-sm border-b border-slate-100">
                 <th className="p-3 font-medium">ชื่อหุ้นส่วน</th>

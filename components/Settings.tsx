@@ -59,9 +59,9 @@ export const Settings: React.FC<SettingsProps> = ({ data, onImport, onAddPartner
                 throw new Error(JSON.stringify(result.error));
             }
             alert("✅ อัปโหลดข้อมูลขึ้น Google Sheets สำเร็จ!");
-        } catch (error) {
+        } catch (error: any) {
             console.error(error);
-            alert("❌ เกิดข้อผิดพลาด: " + error);
+            alert("❌ เกิดข้อผิดพลาด: " + (error.message || error));
         } finally {
             setIsSyncing(false);
         }
@@ -70,17 +70,11 @@ export const Settings: React.FC<SettingsProps> = ({ data, onImport, onAddPartner
 
   const handleCopyCode = () => {
     const code = `
-function doGet(e) {
-  return handleRequest(e);
-}
-
-function doPost(e) {
-  return handleRequest(e);
-}
+function doGet(e) { return handleRequest(e); }
+function doPost(e) { return handleRequest(e); }
 
 function handleRequest(e) {
   var lock = LockService.getScriptLock();
-  // Wait up to 30 seconds for other processes to finish
   lock.tryLock(30000);
 
   try {
@@ -90,7 +84,7 @@ function handleRequest(e) {
 
     if (e.parameter && e.parameter.action) {
       action = e.parameter.action;
-      data = e.parameter;
+      if (e.parameter.data) data = JSON.parse(e.parameter.data);
     } else if (e.postData && e.postData.contents) {
       var body = JSON.parse(e.postData.contents);
       action = body.action;
@@ -98,197 +92,133 @@ function handleRequest(e) {
     }
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    ensureSheet(ss, 'Partners');
-    ensureSheet(ss, 'Projects');
-    ensureSheet(ss, 'Transactions');
+    
+    // Ensure Sheets Exist and Headers
+    ['Partners', 'Projects', 'Transactions'].forEach(function(name) {
+       var s = ss.getSheetByName(name);
+       if (!s) {
+         s = ss.insertSheet(name);
+         if (name === 'Partners') s.appendRow(['id', 'name', 'avatar', 'color']);
+         if (name === 'Projects') s.appendRow(['id', 'name', 'description', 'status', 'startDate']);
+         if (name === 'Transactions') s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
+       }
+    });
 
     if (action === 'getData') {
-      output = getAllData(ss);
+       output = {
+         partners: getSheetData(ss.getSheetByName('Partners')),
+         projects: getSheetData(ss.getSheetByName('Projects')),
+         transactions: getSheetData(ss.getSheetByName('Transactions'))
+       };
     } else if (action === 'importData') {
-      // This is the function to overwrite everything
-      importAllData(ss, data);
-      output = { status: 'success', message: 'Imported successfully' };
-    } else if (action === 'addPartner') {
-      addPartner(ss, data);
-      output = { status: 'success' };
-    } else if (action === 'deletePartner') {
-      deletePartner(ss, data.id);
-      output = { status: 'success' };
-    } else if (action === 'addProject') {
-      addProject(ss, data);
-      output = { status: 'success' };
-    } else if (action === 'addTransaction') {
-      addTransaction(ss, data);
-      output = { status: 'success' };
-    } else if (action === 'updateTransaction') {
-      updateTransaction(ss, data);
-      output = { status: 'success' };
-    } else if (action === 'deleteTransaction') {
-      deleteTransaction(ss, data.id);
-      output = { status: 'success' };
-    } else {
-      output = { status: 'error', message: 'Unknown action: ' + action };
+       // CLEAR ALL DATA
+       var sP = ss.getSheetByName('Partners'); sP.clearContents(); sP.appendRow(['id', 'name', 'avatar', 'color']);
+       var sPr = ss.getSheetByName('Projects'); sPr.clearContents(); sPr.appendRow(['id', 'name', 'description', 'status', 'startDate']);
+       var sTx = ss.getSheetByName('Transactions'); sTx.clearContents(); sTx.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
+       
+       // INSERT NEW DATA
+       if (data.partners && data.partners.length) {
+         var rows = data.partners.map(p => [p.id, p.name, p.avatar, p.color]);
+         sP.getRange(2, 1, rows.length, 4).setValues(rows);
+       }
+       if (data.projects && data.projects.length) {
+         var rows = data.projects.map(p => [p.id, p.name, p.description, p.status, p.startDate]);
+         sPr.getRange(2, 1, rows.length, 5).setValues(rows);
+       }
+       if (data.transactions && data.transactions.length) {
+         var rows = data.transactions.map(t => [t.id, t.projectId, t.partnerId || '', t.type, t.amount, t.date, t.note || '']);
+         sTx.getRange(2, 1, rows.length, 7).setValues(rows);
+       }
+       output = { status: 'success' };
+    } 
+    else if (action === 'addTransaction') {
+       var s = ss.getSheetByName('Transactions');
+       s.appendRow([data.id, data.projectId, data.partnerId || '', data.type, data.amount, data.date, data.note || '']);
+       output = { status: 'success' };
+    }
+    else if (action === 'addProject') {
+       var s = ss.getSheetByName('Projects');
+       s.appendRow([data.id, data.name, data.description || '', data.status, data.startDate]);
+       output = { status: 'success' };
+    }
+    else if (action === 'addPartner') {
+       var s = ss.getSheetByName('Partners');
+       s.appendRow([data.id, data.name, data.avatar, data.color]);
+       output = { status: 'success' };
+    }
+    else if (action === 'updateTransaction') {
+       var s = ss.getSheetByName('Transactions');
+       var values = s.getDataRange().getValues();
+       output = { status: 'not_found' };
+       // Start from 1 to skip header
+       for (var i = 1; i < values.length; i++) {
+         if (String(values[i][0]) === String(data.id)) {
+           // Update Row (1-indexed, so i+1)
+           s.getRange(i + 1, 1, 1, 7).setValues([[
+             data.id, 
+             data.projectId, 
+             data.partnerId || '', 
+             data.type, 
+             data.amount, 
+             data.date, 
+             data.note || ''
+           ]]);
+           output = { status: 'success' };
+           break;
+         }
+       }
+    }
+    else if (action === 'deleteTransaction') {
+       var s = ss.getSheetByName('Transactions');
+       var values = s.getDataRange().getValues();
+       output = { status: 'not_found' };
+       for (var i = 1; i < values.length; i++) {
+         if (String(values[i][0]) === String(data.id)) {
+           s.deleteRow(i + 1);
+           output = { status: 'success' };
+           break;
+         }
+       }
+    }
+    else if (action === 'deletePartner') {
+        var s = ss.getSheetByName('Partners');
+        var values = s.getDataRange().getValues();
+        for (var i = 1; i < values.length; i++) {
+            if (String(values[i][0]) === String(data.id)) {
+                s.deleteRow(i + 1);
+                output = { status: 'success' };
+                break;
+            }
+        }
+    }
+    else {
+        output = { status: 'unknown_action' };
     }
 
-    return ContentService.createTextOutput(JSON.stringify(output))
-      .setMimeType(ContentService.MimeType.JSON);
-
-  } catch (err) {
-    return ContentService.createTextOutput(JSON.stringify({
-      status: 'error',
-      message: err.toString()
-    })).setMimeType(ContentService.MimeType.JSON);
+    return ContentService.createTextOutput(JSON.stringify(output)).setMimeType(ContentService.MimeType.JSON);
+  } catch (e) {
+    return ContentService.createTextOutput(JSON.stringify({ error: e.toString() })).setMimeType(ContentService.MimeType.JSON);
   } finally {
     lock.releaseLock();
   }
 }
 
-function ensureSheet(ss, name) {
-  if (!ss.getSheetByName(name)) ss.insertSheet(name);
-}
-
-function getAllData(ss) {
-  var pSheet = ss.getSheetByName('Partners');
-  var pjSheet = ss.getSheetByName('Projects');
-  var tSheet = ss.getSheetByName('Transactions');
-
-  return {
-    partners: getRows(pSheet),
-    projects: getRows(pjSheet),
-    transactions: getRows(tSheet)
-  };
-}
-
-function getRows(sheet) {
-  var rows = sheet.getDataRange().getValues();
-  if (rows.length < 2) return [];
-  var headers = rows[0];
-  var data = [];
-  for (var i = 1; i < rows.length; i++) {
+function getSheetData(sheet) {
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var result = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
     var obj = {};
     for (var j = 0; j < headers.length; j++) {
-      obj[headers[j]] = rows[i][j];
+      obj[headers[j]] = row[j];
     }
-    data.push(obj);
+    result.push(obj);
   }
-  return data;
-}
-
-function importAllData(ss, data) {
-  // Clear and rewrite all sheets
-  if(data.partners) overwriteSheet(ss, 'Partners', data.partners);
-  if(data.projects) overwriteSheet(ss, 'Projects', data.projects);
-  if(data.transactions) overwriteSheet(ss, 'Transactions', data.transactions);
-}
-
-function overwriteSheet(ss, sheetName, dataArray) {
-  var sheet = ss.getSheetByName(sheetName);
-  sheet.clear(); // Clear existing content
-  
-  if (!dataArray || dataArray.length === 0) return;
-  
-  // Create Headers
-  var headers = Object.keys(dataArray[0]);
-  sheet.appendRow(headers);
-  
-  // Map data to array of arrays
-  var rows = dataArray.map(function(obj) {
-    return headers.map(function(h) {
-      var val = obj[h];
-      return val === undefined || val === null ? '' : val;
-    });
-  });
-  
-  // Write in bulk (much faster than appendRow loop)
-  if(rows.length > 0) {
-    sheet.getRange(2, 1, rows.length, headers.length).setValues(rows);
-  }
-}
-
-function addPartner(ss, p) {
-  var sheet = ss.getSheetByName('Partners');
-  if (sheet.getLastRow() === 0) sheet.appendRow(['id', 'name', 'avatar', 'color']);
-  sheet.appendRow([p.id, p.name, p.avatar, p.color]);
-}
-
-function deletePartner(ss, id) {
-  deleteRowById(ss.getSheetByName('Partners'), id);
-}
-
-function addProject(ss, p) {
-  var sheet = ss.getSheetByName('Projects');
-  if (sheet.getLastRow() === 0) sheet.appendRow(['id', 'name', 'description', 'status', 'startDate']);
-  sheet.appendRow([p.id, p.name, p.description, p.status, p.startDate]);
-}
-
-function addTransaction(ss, t) {
-  var sheet = ss.getSheetByName('Transactions');
-  if (sheet.getLastRow() === 0) sheet.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
-  sheet.appendRow([t.id, t.projectId, t.partnerId, t.type, t.amount, t.date, t.note]);
-}
-
-function updateTransaction(ss, t) {
-   var sheet = ss.getSheetByName('Transactions');
-   var data = sheet.getDataRange().getValues();
-   for(var i=1; i<data.length; i++) {
-     if(data[i][0] == t.id) {
-       sheet.getRange(i+1, 1, 1, 7).setValues([[t.id, t.projectId, t.partnerId, t.type, t.amount, t.date, t.note]]);
-       break;
-     }
-   }
-}
-
-function deleteTransaction(ss, id) {
-  deleteRowById(ss.getSheetByName('Transactions'), id);
-}
-
-function deleteRowById(sheet, id) {
-  var data = sheet.getDataRange().getValues();
-  for (var i = 1; i < data.length; i++) {
-    if (data[i][0] == id) {
-      sheet.deleteRow(i + 1);
-      return;
-    }
-  }
+  return result;
 }`;
     navigator.clipboard.writeText(code);
-    alert("คัดลอกโค้ดแล้ว! นำไปวางใน Google Apps Script Editor ได้เลย");
-  };
-
-  // Export Function
-  const handleExport = () => {
-    const dataStr = JSON.stringify(data, null, 2);
-    const blob = new Blob([dataStr], { type: "application/json" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `CoInvest-Backup-${new Date().toISOString().slice(0, 10)}.json`;
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
-  };
-
-  const handleImportClick = () => fileInputRef.current?.click();
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      try {
-        const json = JSON.parse(event.target?.result as string);
-        if (json.partners && json.projects && json.transactions) {
-          onImport(json);
-          setImportStatus('success');
-          setTimeout(() => setImportStatus('idle'), 3000);
-        } else throw new Error("Invalid structure");
-      } catch (err) {
-        setImportStatus('error');
-        setTimeout(() => setImportStatus('idle'), 3000);
-      }
-    };
-    reader.readAsText(file);
-    e.target.value = '';
+    alert("✅ คัดลอกโค้ดใหม่แล้ว!\n\nกรุณานำไปวางทับใน Google Apps Script Editor แล้วกด 'Deploy' -> 'New deployment' เพื่ออัปเดตระบบ Backend ให้บันทึกข้อมูลได้ถูกต้อง");
   };
 
   const handleCreatePartner = (e: React.FormEvent) => {
@@ -300,95 +230,115 @@ function deleteRowById(sheet, id) {
       color: newPartnerColor
     });
     setNewPartnerName('');
-    // Randomize defaults for next add
     setNewPartnerAvatar(emojiPalette[Math.floor(Math.random() * emojiPalette.length)]);
     setNewPartnerColor(colorPalette[Math.floor(Math.random() * colorPalette.length)]);
   };
 
-  return (
-    <div className="max-w-4xl mx-auto space-y-8 animate-in fade-in duration-500 pb-10">
-      
-      {/* Header */}
-      <div className="flex items-center gap-4 mb-6">
-        <div className="p-3 bg-slate-100 rounded-2xl text-slate-600">
-           <Database size={32} />
-        </div>
-        <div>
-           <h2 className="text-2xl font-bold text-slate-800">จัดการข้อมูล (Data Management)</h2>
-           <p className="text-slate-500">จัดการหุ้นส่วน เชื่อมต่อ Google Sheets หรือสำรองข้อมูล</p>
-        </div>
-      </div>
+  const handleExport = () => {
+    const jsonString = `data:text/json;chatset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
+    const link = document.createElement("a");
+    link.href = jsonString;
+    link.download = `CoInvest_Backup_${new Date().toISOString().split('T')[0]}.json`;
+    link.click();
+  };
 
-      {/* Google Sheets Config */}
-      <Card title="ตั้งค่าการเชื่อมต่อ Google Sheets" className="border-green-100 bg-green-50/50">
+  const handleImportClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const fileReader = new FileReader();
+    if (e.target.files && e.target.files.length > 0) {
+        fileReader.readAsText(e.target.files[0], "UTF-8");
+        fileReader.onload = (event) => {
+            try {
+                if (event.target?.result) {
+                    const parsedData = JSON.parse(event.target.result as string);
+                    if (parsedData.partners && parsedData.projects && parsedData.transactions) {
+                        onImport(parsedData);
+                        setImportStatus('success');
+                        setTimeout(() => setImportStatus('idle'), 3000);
+                    } else {
+                        throw new Error("Invalid structure");
+                    }
+                }
+            } catch (err) {
+                console.error(err);
+                setImportStatus('error');
+                alert("ไฟล์ไม่ถูกต้อง");
+            }
+        };
+    }
+  };
+
+  return (
+    <div className="space-y-8 pb-10">
+      {/* Cloud Sync Config */}
+      <Card title="ตั้งค่าการเชื่อมต่อ (Cloud Sync)" className="border-indigo-100 bg-indigo-50/30">
          <div className="space-y-4">
             <div className="flex flex-col md:flex-row gap-4 items-end">
-               <div className="flex-1 w-full">
-                  <label className="text-sm font-bold text-slate-700 mb-2 flex items-center gap-2">
-                     <Sheet size={16} className="text-green-600"/> Google Apps Script Web App URL
-                  </label>
-                  <input 
-                    type="text" 
-                    value={scriptUrl}
-                    onChange={(e) => setScriptUrl(e.target.value)}
-                    placeholder="https://script.google.com/macros/s/..../exec"
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-300 focus:border-green-500 focus:ring-2 focus:ring-green-100 outline-none"
-                  />
-                  <p className="text-xs text-slate-500 mt-1">
-                     *ต้อง Deploy Script เป็น Web App และตั้งค่า "Who has access" เป็น "Anyone"
-                  </p>
+               <Input 
+                 label="Google Apps Script URL" 
+                 value={scriptUrl} 
+                 onChange={e => setScriptUrl(e.target.value)} 
+                 placeholder="https://script.google.com/macros/s/.../exec"
+                 className="font-mono text-xs"
+               />
+               <div className="flex gap-2">
+                 <Button onClick={handleSaveUrl} className="whitespace-nowrap">
+                   <Save size={16} className="mr-1"/> บันทึก URL
+                 </Button>
+                 {scriptUrl && (
+                   <Button onClick={handleForceSync} disabled={isSyncing} variant="secondary" className="whitespace-nowrap">
+                     {isSyncing ? <Loader2 size={16} className="animate-spin mr-1"/> : <Database size={16} className="mr-1"/>}
+                     Force Upload
+                   </Button>
+                 )}
                </div>
-               <Button onClick={handleSaveUrl} className="bg-green-600 hover:bg-green-700 shadow-green-200">
-                  <Save size={18} className="mr-2"/> บันทึก URL
-               </Button>
             </div>
 
-            {/* Manual Sync Button */}
-            <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-green-200 shadow-sm mt-2">
-                <div className="flex items-center gap-3">
-                   <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
-                      <Upload size={20}/>
-                   </div>
-                   <div>
-                      <h4 className="font-bold text-slate-700">อัปโหลดข้อมูลปัจจุบันขึ้น Cloud (Force Sync)</h4>
-                      <p className="text-xs text-slate-500">ใช้ปุ่มนี้หาก Import JSON มาแล้วข้อมูลไม่ขึ้นบน Google Sheets</p>
-                   </div>
+            <div className="bg-white p-4 rounded-xl border border-slate-200">
+                <div 
+                   className="flex justify-between items-center cursor-pointer" 
+                   onClick={() => setShowCode(!showCode)}
+                >
+                  <div className="flex items-center gap-2 text-slate-700 font-medium">
+                    <Sheet size={20} className="text-green-600"/>
+                    <span>วิธีการติดตั้ง Google Sheets API (Update Script)</span>
+                  </div>
+                  {showCode ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
                 </div>
-                <Button 
-                   onClick={handleForceSync} 
-                   disabled={isSyncing || !scriptUrl} 
-                   className="bg-indigo-600 hover:bg-indigo-700"
-                >
-                   {isSyncing ? <Loader2 className="animate-spin mr-2" size={16}/> : <Upload className="mr-2" size={16}/>}
-                   {isSyncing ? "กำลังอัปโหลด..." : "อัปโหลดทันที"}
-                </Button>
-            </div>
-            
-            <div className="pt-4 border-t border-green-200">
-                <button 
-                  onClick={() => setShowCode(!showCode)}
-                  className="text-sm font-semibold text-green-700 flex items-center gap-2 hover:text-green-800 transition-colors"
-                >
-                  <Code size={16}/> 
-                  {showCode ? "ซ่อนโค้ด Google Apps Script (Backend)" : "แสดงโค้ด Google Apps Script (สำหรับอัปเดต Backend)"}
-                  {showCode ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
-                </button>
                 
                 {showCode && (
-                  <div className="mt-3 bg-slate-800 rounded-xl overflow-hidden shadow-lg">
-                    <div className="flex justify-between items-center px-4 py-2 bg-slate-900 border-b border-slate-700">
-                       <span className="text-xs text-slate-400 font-mono">Code.gs (Updated)</span>
-                       <button onClick={handleCopyCode} className="text-xs flex items-center gap-1 text-indigo-400 hover:text-indigo-300">
-                          <Copy size={12}/> Copy Code
-                       </button>
+                  <div className="mt-4 animate-in slide-in-from-top-2">
+                    <div className="p-3 bg-amber-50 text-amber-800 text-sm rounded-lg mb-4 border border-amber-200">
+                        <strong>⚠️ สำคัญ:</strong> หากคุณพบปัญหา "ข้อมูลไม่ครบ" หรือ "แก้ไขแล้วไม่จำ" กรุณา Copy โค้ดด้านล่างไปวางทับใน Apps Script Editor แล้ว Deploy ใหม่อีกครั้ง
                     </div>
-                    <pre className="p-4 text-xs text-slate-300 font-mono overflow-x-auto max-h-96 custom-scrollbar">
+                    <ol className="list-decimal list-inside text-sm text-slate-600 space-y-2 mb-4 ml-2">
+                      <li>สร้าง Google Sheet ใหม่</li>
+                      <li>ไปที่ <strong>Extensions {'>'} Apps Script</strong></li>
+                      <li>ลบโค้ดเก่าออก แล้ววางโค้ดด้านล่างลงไป (กด Copy)</li>
+                      <li>กด <strong>Deploy {'>'} New deployment</strong></li>
+                      <li>เลือก type เป็น <strong>Web app</strong></li>
+                      <li>ตั้งค่า <strong>Who has access</strong> เป็น <strong>Anyone</strong> (สำคัญ!)</li>
+                      <li>กด Deploy แล้วนำ URL มาวางในช่องด้านบน</li>
+                    </ol>
+                    <div className="relative">
+                      <button 
+                        onClick={handleCopyCode}
+                        className="absolute top-2 right-2 p-2 bg-white/90 hover:bg-white text-slate-500 rounded-lg shadow-sm border border-slate-200 transition-all"
+                        title="Copy Code"
+                      >
+                        <Copy size={16}/>
+                      </button>
+                      <pre className="bg-slate-800 text-slate-100 p-4 rounded-xl text-xs font-mono overflow-x-auto custom-scrollbar h-64">
 {`function doGet(e) { return handleRequest(e); }
 function doPost(e) { return handleRequest(e); }
 
 function handleRequest(e) {
   var lock = LockService.getScriptLock();
-  lock.tryLock(30000); // Wait 30s
+  lock.tryLock(30000);
+
   try {
     var output = {};
     var action = '';
@@ -396,7 +346,7 @@ function handleRequest(e) {
 
     if (e.parameter && e.parameter.action) {
       action = e.parameter.action;
-      data = e.parameter;
+      if (e.parameter.data) data = JSON.parse(e.parameter.data);
     } else if (e.postData && e.postData.contents) {
       var body = JSON.parse(e.postData.contents);
       action = body.action;
@@ -404,25 +354,133 @@ function handleRequest(e) {
     }
 
     var ss = SpreadsheetApp.getActiveSpreadsheet();
-    ensureSheet(ss, 'Partners');
-    ensureSheet(ss, 'Projects');
-    ensureSheet(ss, 'Transactions');
+    
+    // Ensure Sheets Exist
+    ['Partners', 'Projects', 'Transactions'].forEach(function(name) {
+       var s = ss.getSheetByName(name);
+       if (!s) {
+         s = ss.insertSheet(name);
+         if (name === 'Partners') s.appendRow(['id', 'name', 'avatar', 'color']);
+         if (name === 'Projects') s.appendRow(['id', 'name', 'description', 'status', 'startDate']);
+         if (name === 'Transactions') s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
+       }
+    });
 
     if (action === 'getData') {
-      output = getAllData(ss);
+       output = {
+         partners: getSheetData(ss.getSheetByName('Partners')),
+         projects: getSheetData(ss.getSheetByName('Projects')),
+         transactions: getSheetData(ss.getSheetByName('Transactions'))
+       };
     } else if (action === 'importData') {
-      importAllData(ss, data); // Critical Function
-      output = { status: 'success', message: 'Imported successfully' };
-    } else if (action === 'addPartner') {
-      addPartner(ss, data);
-      output = { status: 'success' };
+       // CLEAR ALL DATA
+       var sP = ss.getSheetByName('Partners'); sP.clearContents(); sP.appendRow(['id', 'name', 'avatar', 'color']);
+       var sPr = ss.getSheetByName('Projects'); sPr.clearContents(); sPr.appendRow(['id', 'name', 'description', 'status', 'startDate']);
+       var sTx = ss.getSheetByName('Transactions'); sTx.clearContents(); sTx.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
+       
+       // INSERT NEW DATA
+       if (data.partners && data.partners.length) {
+         var rows = data.partners.map(p => [p.id, p.name, p.avatar, p.color]);
+         sP.getRange(2, 1, rows.length, 4).setValues(rows);
+       }
+       if (data.projects && data.projects.length) {
+         var rows = data.projects.map(p => [p.id, p.name, p.description, p.status, p.startDate]);
+         sPr.getRange(2, 1, rows.length, 5).setValues(rows);
+       }
+       if (data.transactions && data.transactions.length) {
+         // Fix: Handle undefined partnerId/note with || '' to ensure empty cell
+         var rows = data.transactions.map(t => [t.id, t.projectId, t.partnerId || '', t.type, t.amount, t.date, t.note || '']);
+         sTx.getRange(2, 1, rows.length, 7).setValues(rows);
+       }
+       output = { status: 'success' };
     } 
-    // ... (See full code via Copy button) ...
-    // ... (This snippet is abbreviated for display) ... 
-    
-    // Copy the full code using the button above!
-    `}
-                    </pre>
+    else if (action === 'addTransaction') {
+       var s = ss.getSheetByName('Transactions');
+       s.appendRow([data.id, data.projectId, data.partnerId || '', data.type, data.amount, data.date, data.note || '']);
+       output = { status: 'success' };
+    }
+    else if (action === 'updateTransaction') {
+       var s = ss.getSheetByName('Transactions');
+       var values = s.getDataRange().getValues();
+       output = { status: 'not_found' };
+       for (var i = 1; i < values.length; i++) {
+         if (String(values[i][0]) === String(data.id)) {
+           // Update Row (1-indexed)
+           s.getRange(i + 1, 1, 1, 7).setValues([[
+             data.id, 
+             data.projectId, 
+             data.partnerId || '', 
+             data.type, 
+             data.amount, 
+             data.date, 
+             data.note || ''
+           ]]);
+           output = { status: 'success' };
+           break;
+         }
+       }
+    }
+    else if (action === 'deleteTransaction') {
+       var s = ss.getSheetByName('Transactions');
+       var values = s.getDataRange().getValues();
+       output = { status: 'not_found' };
+       for (var i = 1; i < values.length; i++) {
+         if (String(values[i][0]) === String(data.id)) {
+           s.deleteRow(i + 1);
+           output = { status: 'success' };
+           break;
+         }
+       }
+    }
+    else if (action === 'addProject') {
+       var s = ss.getSheetByName('Projects');
+       s.appendRow([data.id, data.name, data.description || '', data.status, data.startDate]);
+       output = { status: 'success' };
+    }
+    else if (action === 'addPartner') {
+       var s = ss.getSheetByName('Partners');
+       s.appendRow([data.id, data.name, data.avatar, data.color]);
+       output = { status: 'success' };
+    }
+    else if (action === 'deletePartner') {
+        var s = ss.getSheetByName('Partners');
+        var values = s.getDataRange().getValues();
+        for (var i = 1; i < values.length; i++) {
+            if (String(values[i][0]) === String(data.id)) {
+                s.deleteRow(i + 1);
+                output = { status: 'success' };
+                break;
+            }
+        }
+    }
+    else {
+        output = { status: 'unknown_action' };
+    }
+
+    return ContentService.createTextOutput(JSON.stringify(output)).setMimeType(ContentService.MimeType.JSON);
+  } catch (e) {
+    return ContentService.createTextOutput(JSON.stringify({ error: e.toString() })).setMimeType(ContentService.MimeType.JSON);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function getSheetData(sheet) {
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0];
+  var result = [];
+  for (var i = 1; i < data.length; i++) {
+    var row = data[i];
+    var obj = {};
+    for (var j = 0; j < headers.length; j++) {
+      obj[headers[j]] = row[j];
+    }
+    result.push(obj);
+  }
+  return result;
+}`}
+                      </pre>
+                    </div>
                   </div>
                 )}
             </div>

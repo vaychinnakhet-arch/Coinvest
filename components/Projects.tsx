@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, Project, Transaction, TransactionType, Partner } from '../types';
 import { Card, Button, Input, Select, Badge } from './ui/Components';
-import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban } from 'lucide-react';
+import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban, ChevronDown, ChevronUp } from 'lucide-react';
 
 interface ProjectsProps {
   data: AppState;
@@ -14,6 +14,7 @@ interface ProjectsProps {
 export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTransaction, onUpdateTransaction, onDeleteTransaction }) => {
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(data.projects.length > 0 ? data.projects[0].id : null);
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Mobile toggle
   
   // New Project State
   const [newProjectName, setNewProjectName] = useState('');
@@ -29,12 +30,11 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
   // Split Payment State
   const [isSplitMode, setIsSplitMode] = useState(false);
-  // Dictionary to hold amount per source: key = 'POOL' | partnerId | projectId, value = amount string
   const [splitAmounts, setSplitAmounts] = useState<Record<string, string>>({});
 
   const selectedProject = data.projects.find(p => p.id === selectedProjectId);
   
-  // Filter other projects (to use as funding source)
+  // Filter other projects
   const otherProjects = data.projects.filter(p => p.id !== selectedProjectId);
   
   // Ensure strict date sorting (Newest -> Oldest)
@@ -42,12 +42,20 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     .filter(t => t.projectId === selectedProjectId)
     .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
 
-  // Reset split state when opening form (only for fresh add)
+  // Reset split state when opening form
   useEffect(() => {
     if (!editingId) {
       setSplitAmounts({ 'POOL': '' });
     }
   }, [editingId]);
+
+  // Auto-collapse sidebar on mobile selection
+  const handleSelectProject = (id: string) => {
+    setSelectedProjectId(id);
+    if (window.innerWidth < 1024) {
+      setIsSidebarOpen(false);
+    }
+  };
 
   const handleCreateProject = (e: React.FormEvent) => {
     e.preventDefault();
@@ -71,12 +79,10 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     const nextState = !isSplitMode;
     setIsSplitMode(nextState);
     
-    // If turning ON split mode while editing, pre-fill with current values
     if (nextState && editingId) {
         const sourceKey = transPartner || 'POOL';
         setSplitAmounts({ [sourceKey]: transAmount });
     } else if (!nextState && !editingId) {
-        // Reset if turning off (and not editing)
         setSplitAmounts({ 'POOL': '' });
     }
   };
@@ -87,25 +93,16 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
     const totalAmount = parseFloat(transAmount);
 
-    // --- EDIT MODE HANDLER ---
     if (editingId) {
-      // Sub-case: Edit Mode with Split Mode Active -> Convert Single to Multiple Transactions
       if (isSplitMode) {
            const currentSplitTotal = calculateSplitTotal();
            if (Math.abs(currentSplitTotal - totalAmount) > 1) {
              alert(`ยอดรวมที่กระจาย (${currentSplitTotal.toLocaleString()}) ไม่ตรงกับยอดรายการ (${totalAmount.toLocaleString()})`);
              return;
            }
-           
-           // Implicitly confirm splitting: Delete original, create new ones.
            onDeleteTransaction(editingId);
-           
-           // Proceed to execute the Creation Logic below (FALL THROUGH)
       } else {
-           // Sub-case: Standard Single Edit
            const sourceProject = data.projects.find(p => p.id === transPartner);
-    
-            // 1. Update the Main Transaction
             onUpdateTransaction({
                id: editingId,
                projectId: selectedProjectId,
@@ -116,7 +113,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                partnerId: sourceProject ? undefined : (transPartner || undefined)
             });
 
-            // 2. Automatic Deduction in Source Project
             if (sourceProject) {
                onAddTransaction({
                    projectId: sourceProject.id,
@@ -130,11 +126,10 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
             
             setEditingId(null);
             resetForm();
-            return; // Stop here for single edit
+            return; 
       }
     }
 
-    // --- CREATION LOGIC (Used for New OR Edit-Split-Conversion) ---
     let sourcesToProcess: Record<string, number> = {};
 
     if (isSplitMode) {
@@ -152,16 +147,12 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
        sourcesToProcess[sourceKey] = totalAmount;
     }
 
-    // Process all sources
     Object.entries(sourcesToProcess).forEach(([sourceKey, amount]) => {
        const isPartner = data.partners.some(p => p.id === sourceKey);
        const isProject = data.projects.some(p => p.id === sourceKey);
        
        if (isProject) {
-          // CASE 1: Cross-Project Funding
           const sourceProj = data.projects.find(p => p.id === sourceKey);
-          
-          // 1.1 Record Expense in Current Project
           onAddTransaction({
              projectId: selectedProjectId,
              type: TransactionType.EXPENSE,
@@ -170,8 +161,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              note: `${transNote} (ดึงเงินจากโครงการ: ${sourceProj?.name})`,
              partnerId: undefined
           });
-
-          // 1.2 Automatically Record Deduction in Source Project
           onAddTransaction({
              projectId: sourceKey,
              type: TransactionType.EXPENSE,
@@ -182,7 +171,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
           });
 
        } else if (isPartner) {
-          // CASE 2: Partner Paid (Investment)
           const partnerName = data.partners.find(p => p.id === sourceKey)?.name;
           onAddTransaction({
              projectId: selectedProjectId,
@@ -194,7 +182,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
           });
 
        } else {
-          // CASE 3: Central Pool
           onAddTransaction({
              projectId: selectedProjectId,
              type: TransactionType.EXPENSE,
@@ -230,6 +217,10 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransNote(t.note);
     setTransPartner(t.partnerId || '');
     setIsSplitMode(false); 
+    // Scroll to form on mobile
+    if (window.innerWidth < 1024) {
+      document.getElementById('transaction-form')?.scrollIntoView({ behavior: 'smooth' });
+    }
   };
 
   const cancelEditing = () => {
@@ -247,7 +238,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     }
   };
 
-  // Build Options for Single Select
   const sourceOptions = [
     { value: '', label: 'กองกลาง (Central Pool)' },
     { label: '--- หุ้นส่วน (Partners) ---', value: 'disabled_1', disabled: true },
@@ -262,87 +252,106 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-140px)]">
-      {/* Sidebar List of Projects (Reduced Width) */}
-      <div className="w-full lg:w-1/4 flex flex-col gap-4">
-        <div className="flex justify-between items-center px-1">
-          <h2 className="text-xl font-bold text-slate-700">โครงการทั้งหมด</h2>
-          <Button size="sm" onClick={() => setShowNewProjectForm(!showNewProjectForm)}>
+    <div className="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-140px)] h-auto min-h-screen">
+      {/* Sidebar List of Projects */}
+      <div className={`w-full lg:w-1/4 flex flex-col gap-4 transition-all duration-300 ${isSidebarOpen ? '' : 'lg:flex hidden'}`}>
+        <div className="flex justify-between items-center px-1 cursor-pointer lg:cursor-default" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+          <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
+            โครงการทั้งหมด 
+            <span className="lg:hidden text-slate-400 bg-slate-100 rounded-full p-1">
+              {isSidebarOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
+            </span>
+          </h2>
+          <Button size="sm" onClick={(e) => { e.stopPropagation(); setShowNewProjectForm(!showNewProjectForm); }}>
             <Plus size={16} className="mr-1" /> สร้าง
           </Button>
         </div>
 
-        {showNewProjectForm && (
-          <Card className="animate-in slide-in-from-top-4 fade-in duration-300">
-            <form onSubmit={handleCreateProject} className="flex flex-col gap-3">
-              <Input 
-                placeholder="ชื่อโครงการ" 
-                value={newProjectName} 
-                onChange={e => setNewProjectName(e.target.value)} 
-                autoFocus
-              />
-              <Input 
-                placeholder="รายละเอียดสั้นๆ" 
-                value={newProjectDesc} 
-                onChange={e => setNewProjectDesc(e.target.value)} 
-              />
-              <div className="flex gap-2 justify-end mt-2">
-                <Button type="button" variant="ghost" size="sm" onClick={() => setShowNewProjectForm(false)}>ยกเลิก</Button>
-                <Button type="submit" size="sm">บันทึก</Button>
-              </div>
-            </form>
-          </Card>
-        )}
-
-        <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar">
-          {data.projects.map(p => (
-            <div 
-              key={p.id}
-              onClick={() => setSelectedProjectId(p.id)}
-              className={`p-4 rounded-xl cursor-pointer transition-all border ${
-                selectedProjectId === p.id 
-                  ? 'bg-white border-indigo-400 shadow-md ring-1 ring-indigo-100 relative overflow-hidden' 
-                  : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200'
-              }`}
-            >
-              {selectedProjectId === p.id && (
-                  <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
-              )}
-              <div className="flex justify-between items-start mb-2 pl-2">
-                <h3 className={`font-bold ${selectedProjectId === p.id ? 'text-indigo-700' : 'text-slate-700'}`}>{p.name}</h3>
-              </div>
-              <div className="flex justify-between items-center pl-2">
-                 <p className="text-xs text-slate-500 line-clamp-1">{p.description || "ไม่มีรายละเอียด"}</p>
-                 <Badge color={p.status === 'active' ? 'green' : 'yellow'}>
-                    {p.status === 'active' ? 'Active' : 'Plan'}
-                 </Badge>
-              </div>
-            </div>
-          ))}
-          
-          {data.projects.length === 0 && (
-            <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-              <FolderOpen size={32} className="mx-auto mb-2 opacity-50"/>
-              <p>ยังไม่มีโครงการ</p>
-            </div>
+        {/* Collapsible Area on Mobile */}
+        <div className={`${isSidebarOpen ? 'block' : 'hidden lg:block'} space-y-4`}>
+          {showNewProjectForm && (
+            <Card className="animate-in slide-in-from-top-4 fade-in duration-300">
+              <form onSubmit={handleCreateProject} className="flex flex-col gap-3">
+                <Input 
+                  placeholder="ชื่อโครงการ" 
+                  value={newProjectName} 
+                  onChange={e => setNewProjectName(e.target.value)} 
+                  autoFocus
+                />
+                <Input 
+                  placeholder="รายละเอียดสั้นๆ" 
+                  value={newProjectDesc} 
+                  onChange={e => setNewProjectDesc(e.target.value)} 
+                />
+                <div className="flex gap-2 justify-end mt-2">
+                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowNewProjectForm(false)}>ยกเลิก</Button>
+                  <Button type="submit" size="sm">บันทึก</Button>
+                </div>
+              </form>
+            </Card>
           )}
+
+          <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar max-h-[300px] lg:max-h-none">
+            {data.projects.map(p => (
+              <div 
+                key={p.id}
+                onClick={() => handleSelectProject(p.id)}
+                className={`p-4 rounded-xl cursor-pointer transition-all border ${
+                  selectedProjectId === p.id 
+                    ? 'bg-white border-indigo-400 shadow-md ring-1 ring-indigo-100 relative overflow-hidden' 
+                    : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200'
+                }`}
+              >
+                {selectedProjectId === p.id && (
+                    <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                )}
+                <div className="flex justify-between items-start mb-2 pl-2">
+                  <h3 className={`font-bold ${selectedProjectId === p.id ? 'text-indigo-700' : 'text-slate-700'}`}>{p.name}</h3>
+                </div>
+                <div className="flex justify-between items-center pl-2">
+                   <p className="text-xs text-slate-500 line-clamp-1">{p.description || "ไม่มีรายละเอียด"}</p>
+                   <Badge color={p.status === 'active' ? 'green' : 'yellow'}>
+                      {p.status === 'active' ? 'Active' : 'Plan'}
+                   </Badge>
+                </div>
+              </div>
+            ))}
+            
+            {data.projects.length === 0 && (
+              <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
+                <FolderOpen size={32} className="mx-auto mb-2 opacity-50"/>
+                <p>ยังไม่มีโครงการ</p>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
-      {/* Main Content Area (Selected Project Details) - Increased Width */}
+      {/* Main Content Area */}
       <div className="w-full lg:w-3/4 flex flex-col h-full overflow-hidden">
         {selectedProject ? (
           <div className="flex flex-col h-full gap-6">
-             {/* Enhanced Project Header */}
+             {/* Mobile Header for Selected Project (When sidebar hidden) */}
+             {!isSidebarOpen && (
+               <div className="lg:hidden flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-slate-100 mb-2" onClick={() => setIsSidebarOpen(true)}>
+                  <span className="font-bold text-slate-700 flex items-center gap-2">
+                    <FolderKanban size={18} className="text-indigo-500"/>
+                    {selectedProject.name}
+                  </span>
+                  <ChevronDown size={16} className="text-slate-400"/>
+               </div>
+             )}
+
+             {/* Project Header */}
              <Card className="shrink-0 bg-white border-slate-200 relative overflow-hidden">
                 <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
                     <FolderKanban size={150} className="text-indigo-500 transform translate-x-10 -translate-y-10"/>
                 </div>
-                <div className="relative z-10 flex justify-between items-start">
+                <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start gap-4">
                     <div>
                          <h2 className="text-2xl font-bold text-slate-800 mb-1">{selectedProject.name}</h2>
-                         <p className="text-slate-500 mb-4 max-w-2xl">{selectedProject.description}</p>
-                         <div className="flex gap-4 text-sm text-slate-600 font-medium">
+                         <p className="text-slate-500 mb-4 max-w-2xl text-sm">{selectedProject.description}</p>
+                         <div className="flex flex-wrap gap-4 text-sm text-slate-600 font-medium">
                            <div className="flex items-center gap-1 bg-slate-100 px-3 py-1 rounded-full">
                              <Calendar size={14} className="text-slate-500"/> เริ่ม: {new Date(selectedProject.startDate).toLocaleDateString('th-TH')}
                            </div>
@@ -351,9 +360,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                 </div>
              </Card>
 
-             <div className="flex-1 flex flex-col xl:flex-row gap-6 min-h-0">
+             <div className="flex-1 flex flex-col-reverse xl:flex-row gap-6 min-h-0">
                 {/* Transaction List */}
-                <Card className="flex-1 flex flex-col min-h-0 overflow-hidden" title="รายการเคลื่อนไหว">
+                <Card className="flex-1 flex flex-col min-h-[400px] xl:min-h-0 overflow-hidden" title="รายการเคลื่อนไหว">
                    <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
                       {projectTransactions.length === 0 ? (
                         <div className="text-center py-10 text-slate-400">
@@ -366,34 +375,37 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                           const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
                           
                           return (
-                          <div key={t.id} className={`flex items-center justify-between p-4 rounded-xl border transition-colors group ${editingId === t.id ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-sm'}`}>
-                             <div className="flex items-center gap-4">
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center ${getTransactionColor(t.type)}`}>
+                          <div key={t.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-colors group gap-3 sm:gap-0 ${editingId === t.id ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-sm'}`}>
+                             {/* Left: Icon & Info */}
+                             <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
+                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shrink-0 ${getTransactionColor(t.type)}`}>
                                    {t.type === TransactionType.INCOME ? <Plus size={20}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={20}/> : <ArrowRight size={20} className="-rotate-45"/>}
                                 </div>
-                                <div>
-                                   <div className="flex items-center gap-2 mb-1">
-                                     <p className="font-bold text-slate-700 text-base">{t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}</p>
+                                <div className="min-w-0">
+                                   <div className="flex items-center gap-2 mb-1 flex-wrap">
+                                     <p className="font-bold text-slate-700 text-sm sm:text-base truncate max-w-[200px] sm:max-w-xs">{t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}</p>
                                      {isDirectPayment && (
-                                       <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 font-medium">จ่ายตรง</span>
+                                       <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 font-medium whitespace-nowrap">จ่ายตรง</span>
                                      )}
                                    </div>
                                    <p className="text-xs text-slate-400 flex items-center gap-2">
-                                     <span>{new Date(t.date).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' })}</span>
+                                     <span className="whitespace-nowrap">{new Date(t.date).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' })}</span>
                                      <span>•</span>
                                      {partner ? (
-                                        <span className="flex items-center gap-1 text-slate-500">
+                                        <span className="flex items-center gap-1 text-slate-500 truncate">
                                           <User size={12}/> {partner.name}
                                         </span>
                                      ) : (
-                                        <span className="flex items-center gap-1 text-slate-500">
+                                        <span className="flex items-center gap-1 text-slate-500 truncate">
                                           <Wallet size={12}/> กองกลาง
                                         </span>
                                      )}
                                    </p>
                                 </div>
                              </div>
-                             <div className="flex items-center gap-4">
+                             
+                             {/* Right: Amount & Actions */}
+                             <div className="flex items-center justify-between sm:justify-end gap-4 pl-14 sm:pl-0 w-full sm:w-auto">
                                 <span className={`font-bold text-lg ${
                                   t.type === TransactionType.INCOME ? 'text-emerald-600' : 
                                   t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
@@ -401,7 +413,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                   {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
                                 </span>
                                 
-                                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); startEditing(t); }}
                                     className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
@@ -424,8 +436,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                    </div>
                 </Card>
 
-                {/* Add/Edit Transaction Form - Increased Width */}
+                {/* Add/Edit Transaction Form */}
                 <Card 
+                  id="transaction-form"
                   className={`w-full xl:w-96 shrink-0 h-fit transition-colors duration-300 ${editingId ? 'ring-2 ring-amber-400 border-amber-200' : ''}`} 
                   title={editingId ? "แก้ไขรายการ" : "บันทึกรายการ"}
                   action={editingId && (
@@ -434,7 +447,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                 >
                    <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
                       {/* Transaction Type Tabs */}
-                      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-xl">
+                      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar">
                         {[
                           { val: TransactionType.EXPENSE, label: 'รายจ่าย' },
                           { val: TransactionType.INCOME, label: 'รายรับ' },
@@ -447,7 +460,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                setTransType(type.val as TransactionType);
                                if (type.val !== TransactionType.EXPENSE) setIsSplitMode(false);
                             }}
-                            className={`flex-1 py-2 text-sm font-medium rounded-lg transition-all ${
+                            className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
                               transType === type.val ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
                             }`}
                           >
@@ -499,7 +512,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                               </button>
                            </div>
 
-                            {/* Split Mode (Creation or Edit-Split) */}
+                            {/* Split Mode */}
                            {isSplitMode ? (
                                <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-200 max-h-72 overflow-y-auto custom-scrollbar">
                                   <div className="flex justify-between text-xs text-slate-500 mb-1 font-medium">
@@ -509,40 +522,37 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                     </span>
                                   </div>
                                   
-                                  {/* Central Pool Input */}
                                   <div className="flex items-center gap-2">
                                      <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-600 shrink-0"><Wallet size={16}/></div>
                                      <span className="text-sm font-medium text-slate-600 flex-1">กองกลาง</span>
                                      <input 
                                        type="number" 
                                        placeholder="0"
-                                       className="w-28 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                       className="w-24 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
                                        value={splitAmounts['POOL'] || ''}
                                        onChange={e => setSplitAmounts(prev => ({...prev, 'POOL': e.target.value}))}
                                      />
                                   </div>
 
-                                  {/* Partners Input */}
                                   {data.partners.map(p => (
                                     <div key={p.id} className="flex items-center gap-2">
                                       <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs text-white shrink-0 shadow-sm" style={{background: p.color}}>
                                         {p.avatar}
                                       </div>
-                                      <span className="text-sm font-medium text-slate-600 flex-1">{p.name}</span>
+                                      <span className="text-sm font-medium text-slate-600 flex-1 truncate">{p.name}</span>
                                       <input 
                                         type="number" 
                                         placeholder="0"
-                                        className="w-28 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                        className="w-24 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
                                         value={splitAmounts[p.id] || ''}
                                         onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
                                       />
                                     </div>
                                   ))}
                                   
-                                  {/* Other Projects Input */}
                                   {otherProjects.length > 0 && (
                                      <>
-                                      <div className="text-[11px] text-slate-400 font-bold mt-3 pt-2 border-t border-slate-200">โครงการอื่น (Cross-Project)</div>
+                                      <div className="text-[11px] text-slate-400 font-bold mt-3 pt-2 border-t border-slate-200">โครงการอื่น</div>
                                       {otherProjects.map(p => (
                                         <div key={p.id} className="flex items-center gap-2">
                                           <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
@@ -552,19 +562,13 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                           <input 
                                             type="number" 
                                             placeholder="0"
-                                            className="w-28 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                            className="w-24 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
                                             value={splitAmounts[p.id] || ''}
                                             onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
                                           />
                                         </div>
                                       ))}
                                      </>
-                                  )}
-
-                                  {Math.abs(calculateSplitTotal() - parseFloat(transAmount || '0')) > 1 && (
-                                     <div className="text-xs text-rose-500 flex items-center gap-1 mt-2 bg-rose-50 p-2 rounded border border-rose-100">
-                                        <AlertCircle size={14}/> ยอดรวมยังไม่ตรงกับจำนวนเงิน
-                                     </div>
                                   )}
                                </div>
                            ) : (
@@ -581,29 +585,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                        </option>
                                      ))}
                                  </select>
-                                 {/* Helper Texts */}
-                                 {transPartner === '' && (
-                                   <p className="text-[11px] text-slate-400 pl-1">
-                                     *ใช้เงินจากกองกลาง
-                                   </p>
-                                 )}
-                                 {data.projects.find(p => p.id === transPartner) && (
-                                   <div className="pl-1">
-                                      <p className="text-[11px] text-indigo-500">
-                                        *ดึงเงินจากโครงการ {data.projects.find(p => p.id === transPartner)?.name}
-                                      </p>
-                                      {editingId && (
-                                          <p className="text-[11px] text-emerald-600 flex items-center gap-1">
-                                            <CheckCircle2 size={12}/> ระบบจะสร้างรายการตัดยอดในโครงการต้นทางให้อัตโนมัติเมื่อบันทึก
-                                          </p>
-                                      )}
-                                   </div>
-                                 )}
-                                 {!isSplitMode && !editingId && data.partners.find(p => p.id === transPartner) && (
-                                    <div className="text-xs text-indigo-600 bg-indigo-50 p-2 rounded border border-indigo-100 flex items-center gap-1">
-                                      <DollarSign size={14}/> ระบบจะนับเป็นเงินลงทุนเพิ่มของหุ้นส่วนโดยอัตโนมัติ
-                                    </div>
-                                 )}
                                </div>
                            )}
                          </div>
@@ -637,10 +618,10 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              </div>
           </div>
         ) : (
-           <div className="flex-1 flex flex-col items-center justify-center text-slate-400">
+           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 min-h-[50vh]">
               <FolderOpen size={64} className="mb-4 opacity-20"/>
-              <p className="text-lg">เลือกโครงการทางซ้ายมือ</p>
-              <p className="text-sm">เพื่อดูรายละเอียดและจัดการรายรับรายจ่าย</p>
+              <p className="text-lg">เลือกโครงการ</p>
+              <p className="text-sm">เพื่อจัดการรายรับรายจ่าย</p>
            </div>
         )}
       </div>

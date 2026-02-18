@@ -1,7 +1,7 @@
 import React, { useRef, useState, useMemo } from 'react';
 import { AppState, TransactionType, Transaction } from '../types';
 import { Button } from './ui/Components';
-import { Download, Calendar, Wallet, TrendingUp, Loader2, FileText, PieChart, Filter, X } from 'lucide-react';
+import { Download, Filter, X, PieChart, Wallet, Loader2, FileText } from 'lucide-react';
 import html2canvas from 'html2canvas';
 
 interface PartnerSummaryProps {
@@ -122,7 +122,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
         investments = investments.filter(t => t.date.startsWith(filterMonth));
       }
 
-      investments.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      investments.sort((a, b) => new Date(a.date).getTime() - new Date(a.date).getTime());
       
       const totalInvested = investments.reduce((sum, t) => sum + t.amount, 0);
       
@@ -165,7 +165,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
               </h2>
               <p className="text-sm text-slate-500">เลือกเงื่อนไขเพื่อสร้าง Statement ที่ต้องการ</p>
            </div>
-           <Button onClick={handleDownload} disabled={isExporting} variant="primary">
+           <Button onClick={handleDownload} disabled={isExporting} variant="primary" className="w-full md:w-auto">
             {isExporting ? <Loader2 className="animate-spin mr-2" size={18}/> : <Download className="mr-2" size={18}/>}
             บันทึกเป็นรูปภาพ
           </Button>
@@ -240,26 +240,26 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
              <div className="inline-flex items-center justify-center p-3 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-2xl shadow-lg shadow-indigo-200 mb-3 text-white">
                 <PieChart size={28} />
              </div>
-             <h1 className="text-3xl font-bold text-slate-800 tracking-tight">Statement of Investment</h1>
-             <div className="flex justify-center gap-2 mt-2 text-indigo-600 font-medium bg-indigo-50 inline-flex px-4 py-1 rounded-full mx-auto w-fit border border-indigo-100">
+             <h1 className="text-2xl md:text-3xl font-bold text-slate-800 tracking-tight">Statement of Investment</h1>
+             <div className="flex flex-wrap justify-center gap-2 mt-2 text-indigo-600 font-medium bg-indigo-50 inline-flex px-4 py-1 rounded-full mx-auto w-fit border border-indigo-100">
                 <span>
                   {filterPartner !== 'all' 
                     ? `คุณ ${data.partners.find(p => p.id === filterPartner)?.name}` 
                     : 'All Partners'}
                 </span>
-                <span>•</span>
+                <span className="hidden sm:inline">•</span>
                 <span>{filterMonth ? formatMonthYear(filterMonth) : 'All Time'}</span>
                 {filterProject !== 'all' && (
                   <>
-                    <span>•</span>
-                    <span>{data.projects.find(p => p.id === filterProject)?.name}</span>
+                    <span className="hidden sm:inline">•</span>
+                    <span className="truncate max-w-[150px]">{data.projects.find(p => p.id === filterProject)?.name}</span>
                   </>
                 )}
              </div>
           </div>
 
           {/* Content Grid - Adjusts layout based on partner count */}
-          <div className={`${filteredData.length === 1 ? 'max-w-4xl mx-auto' : 'grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6'} relative z-10`}>
+          <div className={`${filteredData.length === 1 ? 'max-w-4xl mx-auto' : 'grid grid-cols-1 md:grid-cols-2 2xl:grid-cols-3 gap-6'} relative z-10`}>
             {filteredData.map((partner) => (
               <div 
                 key={partner.id} 
@@ -301,21 +301,21 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                               <div className="bg-slate-50 px-3 py-2 flex justify-between items-center border-b border-slate-100">
                                  <div className="flex items-center gap-2">
                                     <div className="w-1.5 h-1.5 rounded-full bg-slate-400"></div>
-                                    <span className="text-sm font-bold text-slate-700">{project?.name || 'Unknown Project'}</span>
+                                    <span className="text-sm font-bold text-slate-700 truncate max-w-[120px]">{project?.name || 'Unknown Project'}</span>
                                  </div>
                                  <span className="text-xs font-semibold text-slate-500">{formatMoney(projectTotal)}</span>
                               </div>
                               <div className="p-3 bg-white space-y-2">
                                  {(invs as Transaction[]).map(inv => (
-                                   <div key={inv.id} className="flex justify-between items-baseline text-xs group">
-                                      <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 flex-1 pr-4">
+                                   <div key={inv.id} className="flex flex-col sm:flex-row justify-between items-start sm:items-baseline text-xs group gap-1 sm:gap-0">
+                                      <div className="flex flex-wrap sm:items-baseline gap-1 sm:gap-4 flex-1 pr-4">
                                          <span className="text-slate-400 font-mono w-20 shrink-0 whitespace-nowrap">{formatDate(inv.date)}</span>
-                                         <span className="text-slate-700 font-medium">{inv.note || '-'}</span>
+                                         <span className="text-slate-700 font-medium break-all sm:break-normal">{inv.note || '-'}</span>
                                          {inv.type === TransactionType.EXPENSE && (
-                                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1 rounded">จ่ายตรง</span>
+                                            <span className="text-[10px] bg-slate-100 text-slate-500 px-1 rounded whitespace-nowrap">จ่ายตรง</span>
                                          )}
                                       </div>
-                                      <span className="font-semibold text-indigo-600 whitespace-nowrap">
+                                      <span className="font-semibold text-indigo-600 whitespace-nowrap self-end sm:self-auto">
                                         +{inv.amount.toLocaleString()}
                                       </span>
                                    </div>
@@ -340,7 +340,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
             ))}
             
             {filteredData.length === 0 && (
-                <div className="col-span-1 xl:col-span-2 text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-3xl">
+                <div className="col-span-1 md:col-span-2 text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-3xl">
                     <Filter size={48} className="mx-auto mb-3 opacity-30"/>
                     <p className="text-lg">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
                     <p className="text-sm">ลองปรับเปลี่ยนตัวกรอง วันที่ หรือ โครงการ</p>
@@ -349,7 +349,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
           </div>
 
           {/* Footer Summary (Contextual) */}
-          <div className="mt-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex justify-between items-center relative z-10">
+          <div className="mt-8 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col sm:flex-row justify-between items-center relative z-10 gap-4">
              <div className="flex items-center gap-4">
                 <div className="p-3 bg-indigo-50 rounded-xl text-indigo-600">
                    <Wallet size={24} />

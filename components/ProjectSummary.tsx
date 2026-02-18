@@ -1,15 +1,13 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { AppState, TransactionType, Transaction } from '../types';
+import { AppState, TransactionType } from '../types';
 import { Button, Badge } from './ui/Components';
-import { Download, Filter, X, Building2, TrendingUp, TrendingDown, DollarSign, PieChart as PieIcon, Calendar, Loader2, ArrowRightLeft, ArrowRight } from 'lucide-react';
-import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, Legend } from 'recharts';
+import { Download, X, Building2, TrendingUp, TrendingDown, DollarSign, PieChart as PieIcon, Calendar, Loader2, ArrowRightLeft, ArrowRight } from 'lucide-react';
+import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import html2canvas from 'html2canvas';
 
 interface ProjectSummaryProps {
   data: AppState;
 }
-
-const COLORS = ['#818CF8', '#34D399', '#F472B6', '#FBBF24', '#60A5FA', '#A78BFA'];
 
 export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
   const printRef = useRef<HTMLDivElement>(null);
@@ -44,16 +42,12 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
         allowTaint: true,
         windowWidth: 1200,
         onclone: (clonedDoc) => {
-          // Fix gradient text for capture
           const gradientTexts = clonedDoc.querySelectorAll('.bg-clip-text');
           gradientTexts.forEach((el) => {
             const htmlEl = el as HTMLElement;
             htmlEl.classList.remove('bg-clip-text', 'text-transparent', 'bg-gradient-to-r');
             htmlEl.style.color = '#4F46E5';
           });
-          
-          // Fix Recharts responsive container often rendering badly in capture
-          // We rely on the windowWidth setting to force layout
         }
       });
       
@@ -72,13 +66,11 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
 
   const selectedProject = data.projects.find(p => p.id === selectedProjectId);
 
-  // --- Calculation Logic ---
   const stats = useMemo(() => {
     if (!selectedProjectId || !selectedProject) return null;
 
     let transactions = data.transactions.filter(t => t.projectId === selectedProjectId);
 
-    // Apply Month Filter if exists
     if (filterMonth) {
       transactions = transactions.filter(t => t.date.startsWith(filterMonth));
     }
@@ -92,7 +84,6 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
         income += t.amount;
       } else if (t.type === TransactionType.EXPENSE) {
         expense += t.amount;
-        // Logic: Direct expense by partner counts as investment too
         if (t.partnerId) {
           investment += t.amount;
         }
@@ -104,20 +95,15 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
     const netProfit = income - expense;
     const roi = investment > 0 ? (netProfit / investment) * 100 : 0;
 
-    // --- Inter-Project Loan Logic (All Time, ignoring Month Filter for accuracy of Debt) ---
     const loansGiven: { targetName: string, amount: number }[] = [];
     const loansTaken: { sourceName: string, amount: number }[] = [];
 
-    // Helper regex to extract project name from note
-    // Matches: "(นำเงินไปหมุนให้โครงการ: X)" OR "(ตัดยอดจากการแก้ไข) เงินถูกยืมไปโครงการ: X" OR "(ปรับปรุงรายการ) โอนไปโครงการ: X"
     const extractProjectName = (note: string): string | null => {
         const regex = /(?:นำเงินไปหมุนให้โครงการ:|เงินถูกยืมไปโครงการ:|โอนไปโครงการ:)\s*([^\)-]+)/;
         const match = note.match(regex);
         return match && match[1] ? match[1].trim() : null;
     };
 
-    // 1. Calculate Loans Given (We lent money OUT)
-    // Look at THIS project's expenses with specific note pattern
     data.transactions
       .filter(t => t.projectId === selectedProjectId && t.type === TransactionType.EXPENSE)
       .forEach(t => {
@@ -129,13 +115,10 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
          }
       });
 
-    // 2. Calculate Loans Taken (We borrowed money IN)
-    // Look at OTHER projects' expenses with note pointing to US
     data.transactions
       .filter(t => t.projectId !== selectedProjectId && t.type === TransactionType.EXPENSE)
       .forEach(t => {
          const targetName = extractProjectName(t.note);
-         // If the target matches THIS project name
          if (targetName === selectedProject.name) {
             const sourceProject = data.projects.find(p => p.id === t.projectId);
             if (sourceProject) {
@@ -146,8 +129,6 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
          }
       });
 
-
-    // Partner Share in THIS project
     const partnerShares = data.partners.map(p => {
       const invested = transactions
         .filter(t => t.partnerId === p.id && (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE))
@@ -160,7 +141,6 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
       };
     }).filter(p => p.value > 0);
 
-    // Recent Activity (Top 10)
     const recentTx = [...transactions].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 8);
 
     return {
@@ -236,32 +216,32 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
       <div className="overflow-x-auto pb-4">
         <div 
           ref={printRef}
-          className="min-w-[800px] max-w-5xl mx-auto bg-slate-50 p-8 rounded-3xl border border-slate-200 relative overflow-hidden"
+          className="w-full max-w-5xl mx-auto bg-slate-50 p-6 md:p-8 rounded-3xl border border-slate-200 relative overflow-hidden"
         >
           {/* Header */}
-          <div className="flex justify-between items-start mb-8 border-b border-slate-200 pb-6">
+          <div className="flex flex-col md:flex-row justify-between items-start mb-8 border-b border-slate-200 pb-6 gap-4">
              <div>
                 <div className="flex items-center gap-3 mb-2">
-                   <div className="p-3 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200">
+                   <div className="p-3 bg-indigo-600 rounded-xl text-white shadow-lg shadow-indigo-200 shrink-0">
                       <Building2 size={28} />
                    </div>
                    <div>
-                      <h1 className="text-3xl font-bold text-slate-800">{selectedProject.name}</h1>
-                      <div className="flex items-center gap-2 text-slate-500 text-sm">
+                      <h1 className="text-2xl md:text-3xl font-bold text-slate-800 break-words">{selectedProject.name}</h1>
+                      <div className="flex flex-wrap items-center gap-2 text-slate-500 text-sm">
                          <Badge color={selectedProject.status === 'active' ? 'green' : 'yellow'}>
-                            {selectedProject.status === 'active' ? 'Active Project' : 'Planning'}
+                            {selectedProject.status === 'active' ? 'Active' : 'Plan'}
                          </Badge>
-                         <span>•</span>
-                         <span>Started: {new Date(selectedProject.startDate).toLocaleDateString('th-TH')}</span>
+                         <span className="hidden sm:inline">•</span>
+                         <span className="text-xs sm:text-sm">{new Date(selectedProject.startDate).toLocaleDateString('th-TH')}</span>
                       </div>
                    </div>
                 </div>
                 {selectedProject.description && (
-                  <p className="text-slate-500 mt-2 max-w-lg">{selectedProject.description}</p>
+                  <p className="text-slate-500 mt-2 max-w-lg text-sm md:text-base">{selectedProject.description}</p>
                 )}
              </div>
              
-             <div className="text-right">
+             <div className="text-left md:text-right w-full md:w-auto">
                 <p className="text-sm text-slate-500 font-medium">Financial Statement</p>
                 <p className="text-indigo-600 font-bold text-lg">{filterMonth ? formatMonthYear(filterMonth) : 'All Time'}</p>
                 <p className="text-xs text-slate-400 mt-1">Generated by CoInvest</p>
@@ -270,7 +250,7 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
 
           {/* Key Metrics Grid */}
           {stats && (
-            <div className="grid grid-cols-4 gap-4 mb-8">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
                <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm">
                   <p className="text-slate-500 text-xs font-bold uppercase tracking-wider mb-2 flex items-center gap-1">
                      <DollarSign size={14}/> Funds Raised
@@ -305,20 +285,20 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
             </div>
           )}
 
-          {/* Cross-Project Balance Section (NEW) */}
+          {/* Cross-Project Balance Section */}
           {stats && (stats.loansGiven.length > 0 || stats.loansTaken.length > 0) && (
              <div className="mb-8 p-6 bg-slate-100 rounded-3xl border border-slate-200">
                 <div className="flex items-center gap-2 mb-4 text-slate-700">
                   <ArrowRightLeft size={20} className="text-indigo-500"/>
-                  <h3 className="font-bold text-lg">ธุรกรรมระหว่างโครงการ (Cross-Project Balance)</h3>
+                  <h3 className="font-bold text-lg">Cross-Project Balance</h3>
                 </div>
                 
-                <div className="grid grid-cols-2 gap-6">
-                   {/* Loans Given (Assets) */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                   {/* Loans Given */}
                    <div className="bg-white p-4 rounded-2xl border border-slate-200">
                       <h4 className="text-sm font-bold text-emerald-600 mb-3 flex items-center gap-2">
                          <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                         เงินที่ให้โครงการอื่นยืม (ลูกหนี้)
+                         เงินที่ให้โครงการอื่นยืม (Assets)
                       </h4>
                       {stats.loansGiven.length > 0 ? (
                          <div className="space-y-2">
@@ -326,9 +306,9 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                               <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-xl">
                                  <div className="flex items-center gap-2">
                                     <span className="text-slate-400"><ArrowRight size={14}/></span>
-                                    <span className="font-medium text-slate-700">{item.targetName}</span>
+                                    <span className="font-medium text-slate-700 truncate max-w-[120px]">{item.targetName}</span>
                                  </div>
-                                 <span className="font-bold text-emerald-600">{formatMoney(item.amount)}</span>
+                                 <span className="font-bold text-emerald-600 whitespace-nowrap">{formatMoney(item.amount)}</span>
                               </div>
                            ))}
                            <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between text-sm">
@@ -341,11 +321,11 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                       )}
                    </div>
 
-                   {/* Loans Taken (Liabilities) */}
+                   {/* Loans Taken */}
                    <div className="bg-white p-4 rounded-2xl border border-slate-200">
                       <h4 className="text-sm font-bold text-rose-500 mb-3 flex items-center gap-2">
                          <div className="w-2 h-2 rounded-full bg-rose-500"></div>
-                         เงินที่ยืมโครงการอื่นมา (เจ้าหนี้)
+                         เงินที่ยืมโครงการอื่นมา (Liabilities)
                       </h4>
                       {stats.loansTaken.length > 0 ? (
                          <div className="space-y-2">
@@ -353,9 +333,9 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                               <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-xl">
                                  <div className="flex items-center gap-2">
                                     <span className="text-slate-400 rotate-180"><ArrowRight size={14}/></span>
-                                    <span className="font-medium text-slate-700">{item.sourceName}</span>
+                                    <span className="font-medium text-slate-700 truncate max-w-[120px]">{item.sourceName}</span>
                                  </div>
-                                 <span className="font-bold text-rose-500">{formatMoney(item.amount)}</span>
+                                 <span className="font-bold text-rose-500 whitespace-nowrap">{formatMoney(item.amount)}</span>
                               </div>
                            ))}
                            <div className="pt-2 mt-2 border-t border-slate-100 flex justify-between text-sm">
@@ -371,8 +351,8 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
              </div>
           )}
 
-          <div className="grid grid-cols-3 gap-6">
-             {/* Left Col: Partner Shares */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+             {/* Partner Shares */}
              <div className="col-span-1 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col">
                 <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
                    <PieIcon size={18} className="text-indigo-500"/>
@@ -421,8 +401,8 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                 )}
              </div>
 
-             {/* Right Col: Recent Transactions */}
-             <div className="col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+             {/* Recent Transactions */}
+             <div className="col-span-1 lg:col-span-2 bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                 <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2">
                    <TrendingUp size={18} className="text-indigo-500"/>
                    รายการล่าสุด {filterMonth ? `(${formatMonthYear(filterMonth)})` : ''}
@@ -431,9 +411,9 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                 {stats && stats.recentTx.length > 0 ? (
                    <div className="space-y-3">
                       {stats.recentTx.map(t => (
-                         <div key={t.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200 transition-colors">
+                         <div key={t.id} className="flex flex-col sm:flex-row sm:items-center justify-between p-3 rounded-xl bg-slate-50 border border-transparent hover:border-slate-200 transition-colors gap-2 sm:gap-0">
                             <div className="flex items-center gap-3">
-                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm ${
+                               <div className={`w-8 h-8 rounded-full flex items-center justify-center text-sm shrink-0 ${
                                   t.type === TransactionType.INCOME ? 'bg-emerald-100 text-emerald-600' :
                                   t.type === TransactionType.EXPENSE ? 'bg-rose-100 text-rose-600' :
                                   'bg-indigo-100 text-indigo-600'
@@ -441,14 +421,14 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                                   {t.type === TransactionType.INCOME ? '+' : t.type === TransactionType.EXPENSE ? '-' : '$'}
                                </div>
                                <div>
-                                  <p className="text-sm font-semibold text-slate-700">{t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}</p>
+                                  <p className="text-sm font-semibold text-slate-700 truncate max-w-[180px] sm:max-w-xs">{t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}</p>
                                   <p className="text-xs text-slate-400">
                                      {new Date(t.date).toLocaleDateString('th-TH')}
                                      {t.partnerId && ` • ${data.partners.find(p => p.id === t.partnerId)?.name}`}
                                   </p>
                                </div>
                             </div>
-                            <span className={`font-bold ${
+                            <span className={`font-bold ml-11 sm:ml-0 ${
                                t.type === TransactionType.INCOME ? 'text-emerald-600' :
                                t.type === TransactionType.EXPENSE ? 'text-rose-600' :
                                'text-indigo-600'
