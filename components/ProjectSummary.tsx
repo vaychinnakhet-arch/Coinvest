@@ -109,9 +109,9 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
     const loansTaken: { sourceName: string, amount: number }[] = [];
 
     // Helper regex to extract project name from note
-    // Matches: "(นำเงินไปหมุนให้โครงการ: X)" OR "(ตัดยอดจากการแก้ไข) เงินถูกยืมไปโครงการ: X -"
+    // Matches: "(นำเงินไปหมุนให้โครงการ: X)" OR "(ตัดยอดจากการแก้ไข) เงินถูกยืมไปโครงการ: X" OR "(ปรับปรุงรายการ) โอนไปโครงการ: X"
     const extractProjectName = (note: string): string | null => {
-        const regex = /(?:นำเงินไปหมุนให้โครงการ:|เงินถูกยืมไปโครงการ:)\s*([^\)-]+)/;
+        const regex = /(?:นำเงินไปหมุนให้โครงการ:|เงินถูกยืมไปโครงการ:|โอนไปโครงการ:)\s*([^\)-]+)/;
         const match = note.match(regex);
         return match && match[1] ? match[1].trim() : null;
     };

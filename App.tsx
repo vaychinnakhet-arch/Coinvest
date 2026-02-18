@@ -5,8 +5,8 @@ import { Projects } from './components/Projects';
 import { PartnerSummary } from './components/PartnerSummary';
 import { ProjectSummary } from './components/ProjectSummary';
 import { Settings } from './components/Settings';
-import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3 } from 'lucide-react';
-import { supabaseService } from './services/supabaseService';
+import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3, Sheet } from 'lucide-react';
+import { googleSheetsService } from './services/googleSheetsService';
 
 // Mock Data for Initial State (Fallback)
 const INITIAL_DATA: AppState = {
@@ -27,26 +27,21 @@ const INITIAL_DATA: AppState = {
 const App: React.FC = () => {
   const [view, setView] = useState<ViewState>('DASHBOARD');
   const [data, setData] = useState<AppState>(INITIAL_DATA);
-  const isSupabaseConnected = supabaseService.isConnected();
+  const isConnected = googleSheetsService.isConnected();
+  const [isLoading, setIsLoading] = useState(false);
 
-  // Load data & Setup Realtime
+  // Load data
   useEffect(() => {
     const initData = async () => {
-      if (isSupabaseConnected) {
-        // 1. Initial Fetch
-        const cloudData = await supabaseService.loadData();
-        if (cloudData) setData(cloudData);
-
-        // 2. Setup Realtime Subscription
-        const channel = supabaseService.subscribeToChanges(
-          (payload) => handleRealtimeUpdate('partners', payload),
-          (payload) => handleRealtimeUpdate('projects', payload),
-          (payload) => handleRealtimeUpdate('transactions', payload)
-        );
-
-        return () => {
-          channel?.unsubscribe();
-        };
+      if (isConnected) {
+        setIsLoading(true);
+        const cloudData = await googleSheetsService.loadData();
+        if (cloudData) {
+            setData(cloudData);
+        } else {
+            console.error("Failed to load data from Google Sheets");
+        }
+        setIsLoading(false);
       } else {
         // Fallback: LocalStorage
         const saved = localStorage.getItem('coInvestData');
@@ -55,51 +50,14 @@ const App: React.FC = () => {
     };
 
     initData();
-  }, [isSupabaseConnected]);
+  }, [isConnected]);
 
-  // Sync to LocalStorage (Only if NOT using Supabase, or as backup)
+  // Sync to LocalStorage (Only if NOT using Cloud, or as backup)
   useEffect(() => {
-    if (!isSupabaseConnected) {
+    if (!isConnected) {
       localStorage.setItem('coInvestData', JSON.stringify(data));
     }
-  }, [data, isSupabaseConnected]);
-
-  // --- Realtime Handler ---
-  const handleRealtimeUpdate = (table: keyof AppState, payload: any) => {
-    const { eventType, new: newRecord, old: oldRecord } = payload;
-
-    setData(prev => {
-      let updatedList = [...prev[table]] as any[];
-
-      // Helper to map DB snake_case to CamelCase
-      const mapRecord = (rec: any) => {
-        if (!rec) return rec;
-        if (table === 'projects') {
-          return { ...rec, startDate: rec.start_date || rec.startDate };
-        } else if (table === 'transactions') {
-          return { ...rec, projectId: rec.project_id || rec.projectId, partnerId: rec.partner_id || rec.partnerId };
-        }
-        return rec;
-      };
-
-      if (eventType === 'INSERT') {
-        const record = mapRecord(newRecord);
-        // CRITICAL: Check for duplicates (Optimistic UI might have already added it)
-        if (!updatedList.find(item => item.id === record.id)) {
-           updatedList = [...updatedList, record];
-        }
-      } 
-      else if (eventType === 'UPDATE') {
-        const record = mapRecord(newRecord);
-        updatedList = updatedList.map(item => item.id === record.id ? record : item);
-      } 
-      else if (eventType === 'DELETE') {
-        updatedList = updatedList.filter(item => item.id !== oldRecord.id);
-      }
-
-      return { ...prev, [table]: updatedList };
-    });
-  };
+  }, [data, isConnected]);
 
   // --- Actions (Optimistic UI: Update Local -> Sync Remote) ---
 
@@ -109,14 +67,12 @@ const App: React.FC = () => {
     // 1. Optimistic Update (Show immediately)
     setData(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
 
-    // 2. Sync to Supabase
-    if (isSupabaseConnected) {
-      const { error } = await supabaseService.addProject(newProject);
-      if (error) {
-        console.error("Add Project Failed:", error);
-        // Revert on error
-        setData(prev => ({ ...prev, projects: prev.projects.filter(p => p.id !== newProject.id) }));
-        alert("บันทึกข้อมูลไม่สำเร็จ: " + error.message);
+    // 2. Sync to Cloud
+    if (isConnected) {
+      const result = await googleSheetsService.addProject(newProject);
+      if (result.error) {
+        console.error("Add Project Failed:", result.error);
+        alert("บันทึกข้อมูลไม่สำเร็จ");
       }
     }
   };
@@ -127,48 +83,43 @@ const App: React.FC = () => {
     // 1. Optimistic Update
     setData(prev => ({ ...prev, transactions: [...prev.transactions, newTransaction] }));
 
-    // 2. Sync to Supabase
-    if (isSupabaseConnected) {
-      const { error } = await supabaseService.addTransaction(newTransaction);
-      if (error) {
-         console.error("Add Transaction Failed:", error);
-         setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== newTransaction.id) }));
-         alert("บันทึกข้อมูลไม่สำเร็จ: " + error.message);
+    // 2. Sync to Cloud
+    if (isConnected) {
+      const result = await googleSheetsService.addTransaction(newTransaction);
+      if (result.error) {
+         console.error("Add Transaction Failed:", result.error);
+         alert("บันทึกข้อมูลไม่สำเร็จ");
       }
     }
   };
 
   const handleUpdateTransaction = async (transaction: Transaction) => {
     // 1. Optimistic Update
-    const previousTransactions = [...data.transactions];
     setData(prev => ({
       ...prev,
       transactions: prev.transactions.map(t => t.id === transaction.id ? transaction : t)
     }));
 
-    // 2. Sync to Supabase
-    if (isSupabaseConnected) {
-      const { error } = await supabaseService.updateTransaction(transaction);
-      if (error) {
-         console.error("Update Transaction Failed:", error);
-         setData(prev => ({ ...prev, transactions: previousTransactions }));
-         alert("แก้ไขข้อมูลไม่สำเร็จ: " + error.message);
+    // 2. Sync to Cloud
+    if (isConnected) {
+      const result = await googleSheetsService.updateTransaction(transaction);
+      if (result.error) {
+         console.error("Update Transaction Failed:", result.error);
+         alert("แก้ไขข้อมูลไม่สำเร็จ");
       }
     }
   };
 
   const handleDeleteTransaction = async (id: string) => {
     // 1. Optimistic Update
-    const previousTransactions = [...data.transactions];
     setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
 
-    // 2. Sync to Supabase
-    if (isSupabaseConnected) {
-      const { error } = await supabaseService.deleteTransaction(id);
-      if (error) {
-         console.error("Delete Transaction Failed:", error);
-         setData(prev => ({ ...prev, transactions: previousTransactions }));
-         alert("ลบข้อมูลไม่สำเร็จ: " + error.message);
+    // 2. Sync to Cloud
+    if (isConnected) {
+      const result = await googleSheetsService.deleteTransaction(id);
+      if (result.error) {
+         console.error("Delete Transaction Failed:", result.error);
+         alert("ลบข้อมูลไม่สำเร็จ");
       }
     }
   };
@@ -179,13 +130,12 @@ const App: React.FC = () => {
     // 1. Optimistic Update
     setData(prev => ({ ...prev, partners: [...prev.partners, newPartner] }));
 
-    // 2. Sync to Supabase
-    if (isSupabaseConnected) {
-      const { error } = await supabaseService.addPartner(newPartner);
-      if (error) {
-         console.error("Add Partner Failed:", error);
-         setData(prev => ({ ...prev, partners: prev.partners.filter(p => p.id !== newPartner.id) }));
-         alert("บันทึกข้อมูลไม่สำเร็จ: " + error.message);
+    // 2. Sync to Cloud
+    if (isConnected) {
+      const result = await googleSheetsService.addPartner(newPartner);
+      if (result.error) {
+         console.error("Add Partner Failed:", result.error);
+         alert("บันทึกข้อมูลไม่สำเร็จ");
       }
     }
   };
@@ -198,24 +148,52 @@ const App: React.FC = () => {
     }
 
     // 1. Optimistic Update
-    const previousPartners = [...data.partners];
     setData(prev => ({ ...prev, partners: prev.partners.filter(p => p.id !== id) }));
 
-    // 2. Sync to Supabase
-    if (isSupabaseConnected) {
-      const { error } = await supabaseService.deletePartner(id);
-      if (error) {
-         console.error("Delete Partner Failed:", error);
-         setData(prev => ({ ...prev, partners: previousPartners }));
-         alert("ลบข้อมูลไม่สำเร็จ: " + error.message);
+    // 2. Sync to Cloud
+    if (isConnected) {
+      const result = await googleSheetsService.deletePartner(id);
+      if (result.error) {
+         console.error("Delete Partner Failed:", result.error);
+         alert("ลบข้อมูลไม่สำเร็จ");
       }
     }
   };
 
-  const handleImportData = (importedData: AppState) => {
-    if (confirm("การนำเข้าข้อมูลจะเขียนทับข้อมูลปัจจุบัน (เฉพาะ Local Mode) คุณต้องการดำเนินการต่อหรือไม่?")) {
-      setData(importedData);
-      setView('DASHBOARD');
+  const handleImportData = async (importedData: AppState) => {
+    if (isConnected) {
+      const confirmUpload = confirm(
+        "⚠️ คุณกำลังเชื่อมต่อกับ Google Sheets\n\n" +
+        "กด 'OK' เพื่ออัปโหลดข้อมูลจากไฟล์ JSON นี้ไปทับข้อมูลบน Cloud (ข้อมูลเก่าบน Sheet จะหายไป)\n" +
+        "กด 'Cancel' เพื่อดูข้อมูลแบบ Offline เท่านั้น (ข้อมูลจะไม่ถูกบันทึก)"
+      );
+
+      if (confirmUpload) {
+        setIsLoading(true);
+        const result = await googleSheetsService.importData(importedData);
+        setIsLoading(false);
+        
+        if (result.error) {
+           alert("เกิดข้อผิดพลาดในการอัปโหลดข้อมูลไปยัง Google Sheets: " + JSON.stringify(result.error));
+           if (confirm("ต้องการโหลดข้อมูลนี้เพื่อดูแบบ Offline หรือไม่?")) {
+              setData(importedData);
+              setView('DASHBOARD');
+           }
+        } else {
+           alert("นำเข้าและอัปโหลดข้อมูลสำเร็จ!");
+           setData(importedData);
+           setView('DASHBOARD');
+        }
+      } else {
+         // View Offline Mode
+         setData(importedData);
+         setView('DASHBOARD');
+      }
+    } else {
+      if (confirm("การนำเข้าข้อมูลจะเขียนทับข้อมูลปัจจุบันในเครื่อง คุณต้องการดำเนินการต่อหรือไม่?")) {
+        setData(importedData);
+        setView('DASHBOARD');
+      }
     }
   };
 
@@ -258,10 +236,10 @@ const App: React.FC = () => {
         </nav>
 
         <div className="mt-auto px-4 py-4 bg-indigo-50 rounded-2xl">
-           {isSupabaseConnected ? (
-             <div className="flex items-center gap-2 text-xs text-emerald-600 font-medium">
-               <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-               Supabase Realtime On
+           {isConnected ? (
+             <div className="flex items-center gap-2 text-xs text-green-600 font-medium">
+               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
+               Google Sheets Mode
              </div>
            ) : (
              <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
@@ -287,7 +265,7 @@ const App: React.FC = () => {
         </header>
 
         <div className="flex-1 overflow-auto p-4 md:p-8 custom-scrollbar">
-          <div className="max-w-7xl mx-auto">
+          <div className="max-w-[1920px] mx-auto">
             {view === 'SETTINGS' ? (
               <Settings 
                 data={data} 
@@ -297,13 +275,14 @@ const App: React.FC = () => {
               />
             ) : (
               <>
-                <div className="mb-8">
+                <div className="mb-8 flex items-center gap-3">
                   <h2 className="text-2xl font-bold text-slate-800">
                     {view === 'DASHBOARD' ? 'ภาพรวมการลงทุน' : 
                      view === 'PROJECTS' ? 'จัดการโครงการ' : 
                      view === 'PROJECT_SUMMARY' ? 'สรุปภาพรวมโครงการ' :
                      'สรุปยอดหุ้นส่วน'}
                   </h2>
+                  {isLoading && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-lg animate-pulse">กำลังโหลดข้อมูล...</span>}
                 </div>
 
                 {view === 'DASHBOARD' && <Dashboard data={data} />}

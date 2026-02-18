@@ -47,7 +47,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
         useCORS: true,
         allowTaint: true,
         // Force desktop width to ensure layout consistency
-        windowWidth: 1600, 
+        windowWidth: 1920, 
         // Reset scroll position for the capture context to avoid cut-off content
         scrollX: 0,
         scrollY: 0,
@@ -69,6 +69,9 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
              container.style.margin = '0 auto';
              // Force white background on the container itself to be safe
              container.style.backgroundColor = '#F8FAFC';
+             // Force standard width for export image (A4-ish ratio or landscape)
+             container.style.width = '1600px';
+             container.style.maxWidth = 'none';
           }
         }
       });
@@ -227,8 +230,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
         <div 
           ref={printRef}
           id="export-container"
-          className="min-w-[800px] bg-slate-50 p-8 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden"
-          style={{ width: '1000px', margin: '0 auto' }}
+          className="w-full mx-auto bg-slate-50 p-6 rounded-3xl border border-slate-200 shadow-sm relative overflow-hidden"
         >
            {/* Decorative BG */}
           <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-indigo-400 via-purple-400 to-pink-400"></div>
@@ -257,7 +259,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
           </div>
 
           {/* Content Grid - Adjusts layout based on partner count */}
-          <div className={`${filteredData.length === 1 ? 'max-w-2xl mx-auto' : 'grid grid-cols-2 gap-6'} relative z-10`}>
+          <div className={`${filteredData.length === 1 ? 'max-w-4xl mx-auto' : 'grid grid-cols-1 lg:grid-cols-2 2xl:grid-cols-3 gap-6'} relative z-10`}>
             {filteredData.map((partner) => (
               <div 
                 key={partner.id} 
@@ -307,7 +309,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                                  {(invs as Transaction[]).map(inv => (
                                    <div key={inv.id} className="flex justify-between items-baseline text-xs group">
                                       <div className="flex flex-col sm:flex-row sm:items-baseline gap-1 sm:gap-4 flex-1 pr-4">
-                                         <span className="text-slate-400 font-mono w-16 shrink-0">{formatDate(inv.date)}</span>
+                                         <span className="text-slate-400 font-mono w-20 shrink-0 whitespace-nowrap">{formatDate(inv.date)}</span>
                                          <span className="text-slate-700 font-medium">{inv.note || '-'}</span>
                                          {inv.type === TransactionType.EXPENSE && (
                                             <span className="text-[10px] bg-slate-100 text-slate-500 px-1 rounded">จ่ายตรง</span>
@@ -338,7 +340,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
             ))}
             
             {filteredData.length === 0 && (
-                <div className="col-span-2 text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-3xl">
+                <div className="col-span-1 xl:col-span-2 text-center py-12 text-slate-400 border-2 border-dashed border-slate-200 rounded-3xl">
                     <Filter size={48} className="mx-auto mb-3 opacity-30"/>
                     <p className="text-lg">ไม่พบข้อมูลตามเงื่อนไขที่เลือก</p>
                     <p className="text-sm">ลองปรับเปลี่ยนตัวกรอง วันที่ หรือ โครงการ</p>
