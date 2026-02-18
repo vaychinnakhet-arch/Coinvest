@@ -5,7 +5,7 @@ import { Projects } from './components/Projects';
 import { PartnerSummary } from './components/PartnerSummary';
 import { ProjectSummary } from './components/ProjectSummary';
 import { Settings } from './components/Settings';
-import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3 } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3, Database } from 'lucide-react';
 import { googleSheetsService } from './services/googleSheetsService';
 
 // Mock Data for Initial State (Fallback)
@@ -197,64 +197,112 @@ const App: React.FC = () => {
     }
   };
 
-  const NavItem = ({ viewName, label, icon: Icon }: { viewName: ViewState, label: string, icon: any }) => (
-    <button
-      onClick={() => setView(viewName)}
-      className={`flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 w-full text-left font-medium ${
-        view === viewName 
-          ? 'bg-indigo-600 text-white shadow-lg shadow-indigo-200' 
-          : 'text-slate-500 hover:bg-slate-100 hover:text-slate-700'
-      }`}
-    >
-      <Icon size={20} />
-      <span>{label}</span>
-    </button>
-  );
-
-  return (
-    <div className="flex h-screen bg-slate-50 text-slate-800 font-sans overflow-hidden">
-      {/* Sidebar */}
-      <aside className="w-64 bg-white border-r border-slate-100 hidden md:flex flex-col p-6 z-10">
-        <div className="flex items-center gap-3 mb-10 px-2">
-          <div className="w-10 h-10 bg-gradient-to-tr from-indigo-500 to-purple-500 rounded-xl flex items-center justify-center text-white shadow-md">
-            <PieChart size={22} />
-          </div>
-          <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-indigo-600 to-purple-600">
-            CoInvest
-          </h1>
+  const NavItem = ({ viewName, label, icon: Icon, description }: { viewName: ViewState, label: string, icon: any, description?: string }) => {
+    const isActive = view === viewName;
+    return (
+      <button
+        onClick={() => setView(viewName)}
+        className={`relative group flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 w-full text-left ${
+          isActive 
+            ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-xl shadow-indigo-200 scale-100' 
+            : 'text-slate-500 hover:bg-white hover:text-indigo-600 hover:shadow-md hover:shadow-slate-100 hover:scale-[1.02]'
+        }`}
+      >
+        {/* Icon Container */}
+        <div className={`p-2.5 rounded-xl transition-all duration-300 ${
+          isActive 
+            ? 'bg-white/20 text-white' 
+            : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
+        }`}>
+          <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
+        </div>
+        
+        {/* Text */}
+        <div className="flex flex-col">
+          <span className={`font-semibold text-sm ${isActive ? 'text-white' : 'text-slate-600 group-hover:text-indigo-900'}`}>
+            {label}
+          </span>
+          {description && (
+             <span className={`text-[10px] ${isActive ? 'text-indigo-100' : 'text-slate-400'}`}>
+               {description}
+             </span>
+          )}
         </div>
 
-        <nav className="space-y-2 flex-1">
-          <NavItem viewName="DASHBOARD" label="ภาพรวม" icon={LayoutDashboard} />
-          <NavItem viewName="PROJECTS" label="โครงการ & บัญชี" icon={FolderKanban} />
-          <NavItem viewName="PROJECT_SUMMARY" label="สรุปภาพรวมโครงการ" icon={BarChart3} />
-          <NavItem viewName="PARTNERS" label="สรุปยอดหุ้นส่วน" icon={Users} />
-          
-          <div className="pt-4 mt-4 border-t border-slate-100">
-             <NavItem viewName="SETTINGS" label="จัดการข้อมูล" icon={SettingsIcon} />
+        {/* Active Indicator (Right Arrow or similar) */}
+        {isActive && (
+           <div className="absolute right-4 w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
+        )}
+      </button>
+    );
+  };
+
+  return (
+    <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden">
+      {/* Sidebar - Enhanced */}
+      <aside className="w-72 bg-slate-50/50 backdrop-blur-xl border-r border-slate-200/60 hidden md:flex flex-col p-6 z-20 relative">
+        {/* Logo Section */}
+        <div className="flex items-center gap-3 mb-10 px-2 mt-2">
+          <div className="relative">
+            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 transform rotate-3">
+               <PieChart size={24} />
+            </div>
+            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white"></div>
           </div>
+          <div>
+            <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">
+              CoInvest
+            </h1>
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest">Finance Tracker</p>
+          </div>
+        </div>
+
+        {/* Navigation */}
+        <nav className="space-y-2 flex-1">
+          <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Menu</p>
+          <NavItem viewName="DASHBOARD" label="ภาพรวม" icon={LayoutDashboard} description="Dashboard Overview" />
+          <NavItem viewName="PROJECTS" label="โครงการ & บัญชี" icon={FolderKanban} description="Manage Projects" />
+          <NavItem viewName="PROJECT_SUMMARY" label="สรุปภาพรวม" icon={BarChart3} description="Project Analytics" />
+          <NavItem viewName="PARTNERS" label="สรุปยอดหุ้นส่วน" icon={Users} description="Partner Shares" />
+          
+          <div className="my-6 border-t border-slate-200/60 mx-4"></div>
+          
+          <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">System</p>
+          <NavItem viewName="SETTINGS" label="จัดการข้อมูล" icon={SettingsIcon} description="Settings & Backup" />
         </nav>
 
-        <div className="mt-auto px-4 py-4 bg-indigo-50 rounded-2xl">
-           {isConnected ? (
-             <div className="flex items-center gap-2 text-xs text-green-600 font-medium">
-               <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span>
-               Google Sheets Mode
-             </div>
-           ) : (
-             <div className="flex items-center gap-2 text-xs text-slate-400 font-medium">
-               <span className="w-2 h-2 rounded-full bg-slate-300"></span>
-               Local Storage Mode
-             </div>
-           )}
+        {/* Bottom Status Card */}
+        <div className="mt-auto">
+           <div className={`p-4 rounded-2xl border transition-all duration-300 ${
+             isConnected 
+               ? 'bg-emerald-50/80 border-emerald-100' 
+               : 'bg-white border-slate-100 shadow-sm'
+           }`}>
+              <div className="flex items-center gap-3 mb-2">
+                <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
+                <span className={`text-xs font-bold ${isConnected ? 'text-emerald-700' : 'text-slate-500'}`}>
+                  {isConnected ? 'Google Sheets Sync' : 'Local Storage'}
+                </span>
+              </div>
+              <p className="text-[10px] text-slate-400 leading-relaxed">
+                {isConnected 
+                  ? 'ระบบกำลังซิงค์ข้อมูลกับ Cloud โดยอัตโนมัติ' 
+                  : 'ข้อมูลถูกบันทึกในเครื่องนี้เท่านั้น'}
+              </p>
+           </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0">
+      <main className="flex-1 flex flex-col min-w-0 bg-[#F8FAFC]">
         {/* Mobile Header */}
-        <header className="md:hidden bg-white border-b border-slate-100 p-4 flex justify-between items-center">
-           <h1 className="text-lg font-bold text-indigo-600">CoInvest</h1>
+        <header className="md:hidden bg-white border-b border-slate-100 p-4 flex justify-between items-center z-20">
+           <div className="flex items-center gap-2">
+             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
+                <PieChart size={16} />
+             </div>
+             <h1 className="text-lg font-bold text-indigo-900">CoInvest</h1>
+           </div>
            <div className="flex gap-2">
              <button onClick={() => setView('DASHBOARD')} className={`p-2 rounded-lg ${view === 'DASHBOARD' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><LayoutDashboard/></button>
              <button onClick={() => setView('PROJECTS')} className={`p-2 rounded-lg ${view === 'PROJECTS' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><FolderKanban/></button>
@@ -264,8 +312,8 @@ const App: React.FC = () => {
            </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-4 md:p-8 custom-scrollbar">
-          <div className="max-w-[1920px] mx-auto">
+        <div className="flex-1 overflow-auto p-4 md:p-8 custom-scrollbar relative z-10">
+          <div className="max-w-[1600px] mx-auto">
             {view === 'SETTINGS' ? (
               <Settings 
                 data={data} 
@@ -275,14 +323,28 @@ const App: React.FC = () => {
               />
             ) : (
               <>
-                <div className="mb-8 flex items-center gap-3">
-                  <h2 className="text-2xl font-bold text-slate-800">
-                    {view === 'DASHBOARD' ? 'ภาพรวมการลงทุน' : 
-                     view === 'PROJECTS' ? 'จัดการโครงการ' : 
-                     view === 'PROJECT_SUMMARY' ? 'สรุปภาพรวมโครงการ' :
-                     'สรุปยอดหุ้นส่วน'}
-                  </h2>
-                  {isLoading && <span className="text-xs bg-slate-100 text-slate-500 px-2 py-1 rounded-lg animate-pulse">กำลังโหลดข้อมูล...</span>}
+                <div className="mb-8 flex items-center gap-4">
+                  <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 hidden md:block">
+                     {view === 'DASHBOARD' && <LayoutDashboard className="text-indigo-600"/>}
+                     {view === 'PROJECTS' && <FolderKanban className="text-indigo-600"/>}
+                     {view === 'PROJECT_SUMMARY' && <BarChart3 className="text-indigo-600"/>}
+                     {view === 'PARTNERS' && <Users className="text-indigo-600"/>}
+                  </div>
+                  <div>
+                    <h2 className="text-2xl font-bold text-slate-800">
+                      {view === 'DASHBOARD' ? 'ภาพรวมการลงทุน' : 
+                      view === 'PROJECTS' ? 'จัดการโครงการ' : 
+                      view === 'PROJECT_SUMMARY' ? 'สรุปภาพรวมโครงการ' :
+                      'สรุปยอดหุ้นส่วน'}
+                    </h2>
+                    <p className="text-sm text-slate-500 hidden md:block">
+                      {view === 'DASHBOARD' ? 'Overview & Statistics' : 
+                      view === 'PROJECTS' ? 'Manage Projects & Accounts' : 
+                      view === 'PROJECT_SUMMARY' ? 'Project Analytics Report' :
+                      'Partner Investment Summary'}
+                    </p>
+                  </div>
+                  {isLoading && <span className="ml-auto text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full animate-pulse border border-indigo-100 font-medium flex items-center gap-2"><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div> Updating...</span>}
                 </div>
 
                 {view === 'DASHBOARD' && <Dashboard data={data} />}

@@ -1,7 +1,7 @@
 import React, { useMemo } from 'react';
 import { AppState, TransactionType } from '../types';
 import { Card, Badge } from './ui/Components';
-import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid } from 'recharts';
+import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid, ReferenceLine } from 'recharts';
 import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
 
 interface DashboardProps {
@@ -73,17 +73,23 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
   const CustomTooltip = ({ active, payload, label }: any) => {
     if (active && payload && payload.length) {
       return (
-        <div className="bg-white p-4 border border-slate-100 shadow-xl rounded-2xl text-sm">
-          <p className="font-bold text-slate-700 mb-2">{label}</p>
-          {payload.map((entry: any, index: number) => (
-            <div key={index} className="flex items-center gap-2 mb-1">
-              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: entry.color }} />
-              <span className="text-slate-500 capitalize">{entry.name}:</span>
-              <span className="font-semibold text-slate-700 ml-auto">
-                {new Intl.NumberFormat('th-TH').format(entry.value)}
-              </span>
-            </div>
-          ))}
+        <div className="bg-white/95 backdrop-blur-sm p-4 border border-slate-100 shadow-xl rounded-2xl text-sm ring-1 ring-slate-200 min-w-[200px]">
+          <p className="font-bold text-slate-800 mb-3 pb-2 border-b border-slate-100 text-base">{label}</p>
+          <div className="space-y-3">
+            {payload.map((entry: any, index: number) => (
+              <div key={index} className="flex items-center gap-3">
+                <div className="w-3 h-3 rounded-full shadow-sm" style={{ backgroundColor: entry.color }} />
+                <span className="text-slate-500 capitalize font-medium text-sm">{entry.name}</span>
+                <span className={`font-bold ml-auto text-base ${
+                    entry.dataKey === 'profit' 
+                        ? (entry.value >= 0 ? 'text-indigo-600' : 'text-rose-500') 
+                        : 'text-slate-700'
+                }`}>
+                  {new Intl.NumberFormat('th-TH').format(entry.value)}
+                </span>
+              </div>
+            ))}
+          </div>
         </div>
       );
     }
@@ -91,87 +97,87 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
   };
 
   return (
-    <div className="space-y-8 pb-8 animate-in fade-in duration-500">
+    <div className="space-y-8 pb-10 animate-in fade-in duration-500">
       
       {/* 1. Hero Stats Section */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
         {/* Investment Card */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+        <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Wallet size={80} className="text-indigo-600" />
+            <Wallet size={90} className="text-indigo-600" />
           </div>
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-2xl">
-              <DollarSign size={24} />
+            <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl">
+              <DollarSign size={26} />
             </div>
-            <span className="text-slate-500 font-medium text-sm">เงินลงทุนรวม</span>
+            <span className="text-slate-500 font-medium text-base">เงินลงทุนรวม</span>
           </div>
           <div>
-            <h3 className="text-3xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalInvestment)}</h3>
-            <p className="text-xs text-indigo-500 font-medium mt-1 flex items-center gap-1">
-              <ArrowUpRight size={14} /> เงินทุนหมุนเวียนในระบบ
+            <h3 className="text-3xl xl:text-4xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalInvestment)}</h3>
+            <p className="text-sm text-indigo-500 font-medium mt-2 flex items-center gap-1">
+              <ArrowUpRight size={16} /> เงินทุนหมุนเวียนในระบบ
             </p>
           </div>
         </div>
 
         {/* Income Card */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+        <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <TrendingUp size={80} className="text-emerald-600" />
+            <TrendingUp size={90} className="text-emerald-600" />
           </div>
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl">
-              <TrendingUp size={24} />
+            <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl">
+              <TrendingUp size={26} />
             </div>
-            <span className="text-slate-500 font-medium text-sm">รายรับรวม</span>
+            <span className="text-slate-500 font-medium text-base">รายรับรวม</span>
           </div>
           <div>
-            <h3 className="text-3xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalIncome)}</h3>
-             <p className="text-xs text-emerald-500 font-medium mt-1 flex items-center gap-1">
-              <ArrowUpRight size={14} /> รายได้จากทุกโครงการ
+            <h3 className="text-3xl xl:text-4xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalIncome)}</h3>
+             <p className="text-sm text-emerald-500 font-medium mt-2 flex items-center gap-1">
+              <ArrowUpRight size={16} /> รายได้จากทุกโครงการ
             </p>
           </div>
         </div>
 
         {/* Expense Card */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
+        <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
           <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <TrendingDown size={80} className="text-rose-600" />
+            <TrendingDown size={90} className="text-rose-600" />
           </div>
           <div className="flex items-center gap-4 mb-4">
-            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl">
-              <TrendingDown size={24} />
+            <div className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl">
+              <TrendingDown size={26} />
             </div>
-            <span className="text-slate-500 font-medium text-sm">รายจ่ายรวม</span>
+            <span className="text-slate-500 font-medium text-base">รายจ่ายรวม</span>
           </div>
           <div>
-            <h3 className="text-3xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalExpense)}</h3>
-             <p className="text-xs text-rose-500 font-medium mt-1 flex items-center gap-1">
-              <ArrowDownRight size={14} /> ค่าใช้จ่ายทั้งหมด
+            <h3 className="text-3xl xl:text-4xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalExpense)}</h3>
+             <p className="text-sm text-rose-500 font-medium mt-2 flex items-center gap-1">
+              <ArrowDownRight size={16} /> ค่าใช้จ่ายทั้งหมด
             </p>
           </div>
         </div>
 
         {/* Net Profit Card (Highlighted) */}
-        <div className={`p-6 rounded-3xl border shadow-sm relative overflow-hidden group hover:shadow-md transition-all ${
+        <div className={`p-6 lg:p-7 rounded-3xl border shadow-sm relative overflow-hidden group hover:shadow-md transition-all ${
           stats.netProfit >= 0 
             ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white border-transparent' 
             : 'bg-white border-rose-100'
         }`}>
           <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Activity size={80} className={stats.netProfit >= 0 ? "text-white" : "text-rose-500"} />
+            <Activity size={90} className={stats.netProfit >= 0 ? "text-white" : "text-rose-500"} />
           </div>
           <div className="flex items-center gap-4 mb-4">
-            <div className={`p-3 rounded-2xl ${stats.netProfit >= 0 ? 'bg-white/20 text-white' : 'bg-rose-50 text-rose-600'}`}>
-              <Activity size={24} />
+            <div className={`p-3.5 rounded-2xl ${stats.netProfit >= 0 ? 'bg-white/20 text-white' : 'bg-rose-50 text-rose-600'}`}>
+              <Activity size={26} />
             </div>
-            <span className={`font-medium text-sm ${stats.netProfit >= 0 ? 'text-indigo-100' : 'text-slate-500'}`}>กำไรสุทธิ</span>
+            <span className={`font-medium text-base ${stats.netProfit >= 0 ? 'text-indigo-100' : 'text-slate-500'}`}>กำไรสุทธิ</span>
           </div>
           <div>
-            <h3 className={`text-3xl font-bold tracking-tight ${stats.netProfit >= 0 ? 'text-white' : 'text-rose-600'}`}>
+            <h3 className={`text-3xl xl:text-4xl font-bold tracking-tight ${stats.netProfit >= 0 ? 'text-white' : 'text-rose-600'}`}>
               {formatCurrency(stats.netProfit)}
             </h3>
-            <p className={`text-xs font-medium mt-1 flex items-center gap-1 ${stats.netProfit >= 0 ? 'text-indigo-100' : 'text-slate-400'}`}>
+            <p className={`text-sm font-medium mt-2 flex items-center gap-1 ${stats.netProfit >= 0 ? 'text-indigo-100' : 'text-slate-400'}`}>
                สถานะการเงินปัจจุบัน
             </p>
           </div>
@@ -180,78 +186,143 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
         {/* 2. Chart Section: Performance */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-3xl border border-slate-100 shadow-sm">
-          <div className="flex items-center justify-between mb-6">
+        <div className="lg:col-span-2 bg-white p-7 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between mb-8 gap-4">
             <div>
-              <h3 className="text-lg font-bold text-slate-800">ประสิทธิภาพรายโครงการ</h3>
-              <p className="text-sm text-slate-500">เปรียบเทียบ รายรับ vs รายจ่าย</p>
+              <h3 className="text-xl font-bold text-slate-800">ประสิทธิภาพรายโครงการ</h3>
+              <p className="text-base text-slate-500 mt-1">เปรียบเทียบ รายรับ vs รายจ่าย</p>
             </div>
-            <div className="flex gap-4 text-xs font-medium">
-               <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-emerald-400"></div> รายรับ</div>
-               <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-rose-400"></div> รายจ่าย</div>
-               <div className="flex items-center gap-1"><div className="w-3 h-3 rounded-full bg-indigo-400"></div> กำไร</div>
+            <div className="flex gap-4 text-sm font-medium bg-slate-50 p-2.5 rounded-2xl border border-slate-100">
+               <div className="flex items-center gap-2 px-3">
+                 <div className="w-3.5 h-3.5 rounded bg-gradient-to-b from-emerald-400 to-emerald-500 shadow-sm"></div> รายรับ
+               </div>
+               <div className="flex items-center gap-2 px-3 border-l border-slate-200">
+                 <div className="w-3.5 h-3.5 rounded bg-gradient-to-b from-rose-400 to-rose-500 shadow-sm"></div> รายจ่าย
+               </div>
+               <div className="flex items-center gap-2 px-3 border-l border-slate-200">
+                 <div className="w-3.5 h-3.5 rounded bg-gradient-to-b from-indigo-400 to-indigo-500 shadow-sm"></div> กำไร
+               </div>
             </div>
           </div>
-          <div className="h-80 w-full">
+          <div className="flex-1 w-full min-h-[400px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={projectPerformance} barGap={4} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
-                <XAxis dataKey="name" stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} dy={10} />
-                <YAxis stroke="#94a3b8" fontSize={12} tickLine={false} axisLine={false} tickFormatter={(val) => `${val/1000}k`} />
-                <RechartsTooltip content={<CustomTooltip />} cursor={{fill: '#f8fafc'}} />
-                <Bar dataKey="income" name="รายรับ" fill="#34D399" radius={[6, 6, 0, 0]} maxBarSize={50} />
-                <Bar dataKey="expense" name="รายจ่าย" fill="#FB7185" radius={[6, 6, 0, 0]} maxBarSize={50} />
-                <Bar dataKey="profit" name="กำไร" fill="#818CF8" radius={[6, 6, 0, 0]} maxBarSize={50} />
+              <BarChart data={projectPerformance} barGap={8} margin={{ top: 20, right: 30, left: 10, bottom: 20 }}>
+                <defs>
+                  <linearGradient id="colorIncome" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#34d399" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#059669" stopOpacity={1}/>
+                  </linearGradient>
+                  <linearGradient id="colorExpense" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#fb7185" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#e11d48" stopOpacity={1}/>
+                  </linearGradient>
+                  <linearGradient id="colorProfit" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#818cf8" stopOpacity={1}/>
+                    <stop offset="100%" stopColor="#4f46e5" stopOpacity={1}/>
+                  </linearGradient>
+                </defs>
+
+                <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" />
+                
+                <XAxis 
+                    dataKey="name" 
+                    stroke="#94a3b8" 
+                    fontSize={14} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    dy={12}
+                    tick={{ fill: '#64748b', fontWeight: 500 }}
+                />
+                <YAxis 
+                    stroke="#94a3b8" 
+                    fontSize={14} 
+                    tickLine={false} 
+                    axisLine={false} 
+                    tickFormatter={(val) => `${val/1000}k`}
+                    tick={{ fill: '#94a3b8' }}
+                />
+                
+                <RechartsTooltip content={<CustomTooltip />} cursor={{fill: '#f8fafc', opacity: 0.5}} />
+                
+                <ReferenceLine y={0} stroke="#94a3b8" strokeWidth={1} />
+                
+                <Bar 
+                    dataKey="income" 
+                    name="รายรับ" 
+                    fill="url(#colorIncome)" 
+                    radius={[6, 6, 0, 0]} 
+                    maxBarSize={50}
+                />
+                <Bar 
+                    dataKey="expense" 
+                    name="รายจ่าย" 
+                    fill="url(#colorExpense)" 
+                    radius={[6, 6, 0, 0]} 
+                    maxBarSize={50}
+                />
+                <Bar 
+                    dataKey="profit" 
+                    name="กำไร" 
+                    fill="url(#colorProfit)" 
+                    radius={[6, 6, 6, 6]} 
+                    maxBarSize={50}
+                />
               </BarChart>
             </ResponsiveContainer>
           </div>
         </div>
 
         {/* 3. Chart Section: Partners */}
-        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
-          <div className="mb-4">
-             <h3 className="text-lg font-bold text-slate-800">สัดส่วนการลงทุน</h3>
-             <p className="text-sm text-slate-500">ตามสัดส่วนผู้ถือหุ้น</p>
+        <div className="bg-white p-7 rounded-3xl border border-slate-100 shadow-sm flex flex-col">
+          <div className="mb-6">
+             <h3 className="text-xl font-bold text-slate-800">สัดส่วนการลงทุน</h3>
+             <p className="text-base text-slate-500 mt-1">ตามสัดส่วนผู้ถือหุ้น</p>
           </div>
           
-          <div className="flex-1 min-h-[250px] relative">
+          <div className="flex-1 min-h-[280px] relative">
             <ResponsiveContainer width="100%" height="100%">
               <PieChart>
                 <Pie
                   data={partnerInvestments}
                   cx="50%"
                   cy="50%"
-                  innerRadius={70}
-                  outerRadius={90}
+                  innerRadius={80}
+                  outerRadius={105}
                   paddingAngle={5}
                   dataKey="value"
                   stroke="none"
+                  startAngle={90}
+                  endAngle={-270}
                 >
                   {partnerInvestments.map((entry, index) => (
-                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                    <Cell 
+                        key={`cell-${index}`} 
+                        fill={COLORS[index % COLORS.length]} 
+                        className="drop-shadow-sm filter hover:brightness-110 transition-all cursor-pointer"
+                    />
                   ))}
                 </Pie>
-                <RechartsTooltip formatter={(val: number) => formatCurrency(val)} contentStyle={{ borderRadius: '12px' }} />
+                <RechartsTooltip formatter={(val: number) => formatCurrency(val)} contentStyle={{ borderRadius: '16px', padding: '12px' }} />
               </PieChart>
             </ResponsiveContainer>
             {/* Center Text in Donut */}
             <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-                <span className="text-3xl font-bold text-slate-800">{partnerInvestments.length}</span>
-                <span className="text-xs text-slate-400 font-medium">หุ้นส่วน</span>
+                <span className="text-4xl font-bold text-slate-800">{partnerInvestments.length}</span>
+                <span className="text-sm text-slate-400 font-medium">หุ้นส่วน</span>
             </div>
           </div>
 
-          <div className="mt-4 space-y-3">
+          <div className="mt-6 space-y-3">
              {partnerInvestments.map((p, idx) => {
                const percentage = stats.totalInvestment > 0 ? (p.value / stats.totalInvestment) * 100 : 0;
                return (
-                  <div key={idx} className="flex items-center justify-between group">
-                     <div className="flex items-center gap-3">
-                        <div className="w-3 h-3 rounded-full shrink-0" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
-                        <span className="text-sm font-medium text-slate-600 group-hover:text-slate-800 transition-colors">{p.name}</span>
+                  <div key={idx} className="flex items-center justify-between group p-3 hover:bg-slate-50 rounded-2xl transition-colors">
+                     <div className="flex items-center gap-4">
+                        <div className="w-3.5 h-3.5 rounded-full shrink-0 shadow-sm" style={{ backgroundColor: COLORS[idx % COLORS.length] }}></div>
+                        <span className="text-base font-medium text-slate-600 group-hover:text-slate-800 transition-colors">{p.name}</span>
                      </div>
                      <div className="text-right">
-                        <span className="text-sm font-bold text-slate-700 block">{percentage.toFixed(1)}%</span>
+                        <span className="text-base font-bold text-slate-700 block">{percentage.toFixed(1)}%</span>
                      </div>
                   </div>
                )
@@ -262,17 +333,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
 
       {/* 4. Partner Details Table */}
       <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
-        <div className="p-6 border-b border-slate-50">
-           <h3 className="text-lg font-bold text-slate-800">รายละเอียดหุ้นส่วน</h3>
+        <div className="p-7 border-b border-slate-50">
+           <h3 className="text-xl font-bold text-slate-800">รายละเอียดหุ้นส่วน</h3>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead className="bg-slate-50/50">
-              <tr className="text-slate-500 text-xs uppercase tracking-wider">
-                <th className="p-5 font-semibold pl-8">ชื่อหุ้นส่วน</th>
-                <th className="p-5 font-semibold text-right">เงินลงทุนสะสม</th>
-                <th className="p-5 font-semibold w-1/3">สัดส่วน (%)</th>
-                <th className="p-5 font-semibold text-center">สถานะ</th>
+              <tr className="text-slate-500 text-sm uppercase tracking-wider">
+                <th className="p-6 font-semibold pl-8">ชื่อหุ้นส่วน</th>
+                <th className="p-6 font-semibold text-right">เงินลงทุนสะสม</th>
+                <th className="p-6 font-semibold w-1/3">สัดส่วน (%)</th>
+                <th className="p-6 font-semibold text-center">สถานะ</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-50">
@@ -280,25 +351,25 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
                 const percentage = stats.totalInvestment > 0 ? (p.value / stats.totalInvestment) * 100 : 0;
                 return (
                   <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
-                    <td className="p-5 pl-8">
+                    <td className="p-6 pl-8">
                       <div className="flex items-center gap-4">
-                        <div className="w-10 h-10 rounded-xl flex items-center justify-center text-lg shadow-sm ring-1 ring-slate-100" style={{ backgroundColor: COLORS[idx % COLORS.length] + '20' }}>
+                        <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm ring-1 ring-slate-100" style={{ backgroundColor: COLORS[idx % COLORS.length] + '20' }}>
                           {p.avatar}
                         </div>
-                        <span className="font-bold text-slate-700">{p.name}</span>
+                        <span className="font-bold text-slate-700 text-base">{p.name}</span>
                       </div>
                     </td>
-                    <td className="p-5 text-right font-bold text-indigo-600">{formatCurrency(p.value)}</td>
-                    <td className="p-5">
-                       <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
+                    <td className="p-6 text-right font-bold text-indigo-600 text-base">{formatCurrency(p.value)}</td>
+                    <td className="p-6">
+                       <div className="w-full bg-slate-100 rounded-full h-3 overflow-hidden shadow-inner">
                           <div 
-                            className="h-full rounded-full transition-all duration-1000 ease-out" 
+                            className="h-full rounded-full transition-all duration-1000 ease-out shadow-sm" 
                             style={{ width: `${percentage}%`, backgroundColor: COLORS[idx % COLORS.length] }}
                           ></div>
                        </div>
-                       <p className="text-xs text-slate-400 mt-1.5 text-right font-medium">{percentage.toFixed(1)}%</p>
+                       <p className="text-sm text-slate-400 mt-2 text-right font-medium">{percentage.toFixed(1)}%</p>
                     </td>
-                    <td className="p-5 text-center">
+                    <td className="p-6 text-center">
                        <Badge color="blue">Active</Badge>
                     </td>
                   </tr>
