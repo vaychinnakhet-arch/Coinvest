@@ -1,7 +1,7 @@
 import { AppState, Partner, Project, Transaction } from '../types';
 
 const SCRIPT_URL_KEY = 'google_sheet_script_url';
-// Default URL embedded as requested
+// Default URL confirmed by user
 const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyPwuNKXlQz07PIIf5ckBeTv6Ix_RfUFjgPc7AaMnZKOFMJa4CMwza7_72DFETNK_0/exec';
 
 export const googleSheetsService = {
@@ -9,6 +9,8 @@ export const googleSheetsService = {
   getUrl: () => localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_SCRIPT_URL,
   
   setUrl: (url: string) => localStorage.setItem(SCRIPT_URL_KEY, url),
+
+  resetUrl: () => localStorage.removeItem(SCRIPT_URL_KEY),
   
   isConnected: () => !!(localStorage.getItem(SCRIPT_URL_KEY) || DEFAULT_SCRIPT_URL),
 

@@ -1,8 +1,14 @@
 import React, { ReactNode } from 'react';
 
 // Card
-export const Card: React.FC<{ children: ReactNode; className?: string; title?: string; action?: ReactNode }> = ({ children, className = "", title, action }) => (
-  <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 p-6 ${className}`}>
+interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
+  children: ReactNode;
+  title?: string;
+  action?: ReactNode;
+}
+
+export const Card: React.FC<CardProps> = ({ children, className = "", title, action, ...props }) => (
+  <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 p-6 ${className}`} {...props}>
     {(title || action) && (
       <div className="flex justify-between items-center mb-4">
         {title && <h3 className="text-lg font-bold text-slate-700">{title}</h3>}
@@ -77,7 +83,7 @@ export const Input: React.FC<InputProps> = ({ label, className = "", ...props })
 // Select
 interface SelectProps extends React.SelectHTMLAttributes<HTMLSelectElement> {
   label?: string;
-  options: { value: string; label: string }[];
+  options: { value: string; label: string; disabled?: boolean }[];
 }
 
 export const Select: React.FC<SelectProps> = ({ label, options, className = "", ...props }) => (
@@ -87,8 +93,8 @@ export const Select: React.FC<SelectProps> = ({ label, options, className = "", 
       className={`w-full px-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all outline-none text-slate-800 ${className}`}
       {...props}
     >
-      {options.map((opt) => (
-        <option key={opt.value} value={opt.value}>
+      {options.map((opt, idx) => (
+        <option key={opt.value || idx} value={opt.value} disabled={opt.disabled}>
           {opt.label}
         </option>
       ))}

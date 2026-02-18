@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, Project, Transaction, TransactionType, Partner } from '../types';
 import { Card, Button, Input, Select, Badge } from './ui/Components';
-import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban, ChevronDown, ChevronUp, Image as ImageIcon, Receipt, Eye } from 'lucide-react';
+import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban, ChevronDown, ChevronUp, Image as ImageIcon, Receipt, Eye, Loader2 } from 'lucide-react';
 
 interface ProjectsProps {
   data: AppState;
@@ -29,6 +29,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [transNote, setTransNote] = useState('');
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
   const [transImage, setTransImage] = useState<string>(''); // Base64 string
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
 
   // Split Payment State
   const [isSplitMode, setIsSplitMode] = useState(false);
@@ -77,7 +78,24 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Compress Image logic
+    setIsProcessingImage(true);
+
+    // Google Sheets Cell Limit is 50,000 characters.
+    // Base64 size is ~1.33x original file size.
+    // 35KB file ~ 47KB Base64 string.
+    
+    // 1. If file is small (< 35KB), use original directly (Best Quality)
+    if (file.size < 35 * 1024) {
+       const reader = new FileReader();
+       reader.onload = (ev) => {
+          setTransImage(ev.target?.result as string);
+          setIsProcessingImage(false);
+       };
+       reader.readAsDataURL(file);
+       return;
+    }
+
+    // 2. Compress Image logic (Smart Fit)
     const reader = new FileReader();
     reader.onload = (event) => {
       const img = new Image();
@@ -85,10 +103,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
         const canvas = document.createElement('canvas');
         const ctx = canvas.getContext('2d');
         
-        // Max dimensions (fit within Google Sheet cell limit effectively)
-        // Reduced to 400px to ensure base64 string fits in 50k char limit
-        const MAX_WIDTH = 400; 
-        const MAX_HEIGHT = 400;
+        // Increase resolution from 400 to 800 to improve readability
+        const MAX_WIDTH = 800; 
+        const MAX_HEIGHT = 800;
         let width = img.width;
         let height = img.height;
 
@@ -108,9 +125,18 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
         canvas.height = height;
         ctx?.drawImage(img, 0, 0, width, height);
         
-        // Export to JPEG with lower quality (0.5) to reduce file size
-        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        // Start with high quality (0.8)
+        let quality = 0.8;
+        let dataUrl = canvas.toDataURL('image/jpeg', quality);
+
+        // Downgrade quality step-by-step only if it exceeds Google Sheets limit (50k chars)
+        while (dataUrl.length > 50000 && quality > 0.1) {
+            quality -= 0.1;
+            dataUrl = canvas.toDataURL('image/jpeg', quality);
+        }
+
         setTransImage(dataUrl);
+        setIsProcessingImage(false);
       };
       img.src = event.target?.result as string;
     };
@@ -135,7 +161,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjectId || !transAmount) return;
+    if (!selectedProjectId || !transAmount || isProcessingImage) return;
 
     const totalAmount = parseFloat(transAmount);
 
@@ -251,6 +277,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransAmount('');
     setTransNote('');
     setTransImage('');
+    setIsProcessingImage(false);
     setSplitAmounts({});
     if (editingId) {
       setTransType(TransactionType.EXPENSE);
@@ -587,7 +614,12 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                 className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
                               />
                            </div>
-                           {transImage && (
+                           {isProcessingImage && (
+                             <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium">
+                               <Loader2 size={12} className="animate-spin"/> กำลังย่อรูป...
+                             </div>
+                           )}
+                           {transImage && !isProcessingImage && (
                               <div className="w-10 h-10 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage)}>
                                  <img src={transImage} className="w-full h-full object-cover rounded-lg border border-slate-200" alt="Preview"/>
                                  <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 cursor-pointer shadow-sm border border-slate-200" onClick={(e) => {e.stopPropagation(); setTransImage('');}}>
@@ -712,8 +744,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                ยกเลิก
                             </Button>
                          )}
-                         <Button type="submit" className="flex-1 py-3 text-base" disabled={!transAmount}>
-                           {editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
+                         <Button type="submit" className="flex-1 py-3 text-base" disabled={!transAmount || isProcessingImage}>
+                           {isProcessingImage ? 'กำลังเตรียมรูป...' : editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
                          </Button>
                       </div>
                    </form>
