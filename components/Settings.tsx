@@ -100,7 +100,7 @@ function handleRequest(e) {
          s = ss.insertSheet(name);
          if (name === 'Partners') s.appendRow(['id', 'name', 'avatar', 'color']);
          if (name === 'Projects') s.appendRow(['id', 'name', 'description', 'status', 'startDate']);
-         if (name === 'Transactions') s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
+         if (name === 'Transactions') s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage']);
        }
     });
 
@@ -114,7 +114,7 @@ function handleRequest(e) {
        // CLEAR ALL DATA
        var sP = ss.getSheetByName('Partners'); sP.clearContents(); sP.appendRow(['id', 'name', 'avatar', 'color']);
        var sPr = ss.getSheetByName('Projects'); sPr.clearContents(); sPr.appendRow(['id', 'name', 'description', 'status', 'startDate']);
-       var sTx = ss.getSheetByName('Transactions'); sTx.clearContents(); sTx.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
+       var sTx = ss.getSheetByName('Transactions'); sTx.clearContents(); sTx.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage']);
        
        // INSERT NEW DATA
        if (data.partners && data.partners.length) {
@@ -126,14 +126,14 @@ function handleRequest(e) {
          sPr.getRange(2, 1, rows.length, 5).setValues(rows);
        }
        if (data.transactions && data.transactions.length) {
-         var rows = data.transactions.map(t => [t.id, t.projectId, t.partnerId || '', t.type, t.amount, t.date, t.note || '']);
-         sTx.getRange(2, 1, rows.length, 7).setValues(rows);
+         var rows = data.transactions.map(t => [t.id, t.projectId, t.partnerId || '', t.type, t.amount, t.date, t.note || '', t.receiptImage || '']);
+         sTx.getRange(2, 1, rows.length, 8).setValues(rows);
        }
        output = { status: 'success' };
     } 
     else if (action === 'addTransaction') {
        var s = ss.getSheetByName('Transactions');
-       s.appendRow([data.id, data.projectId, data.partnerId || '', data.type, data.amount, data.date, data.note || '']);
+       s.appendRow([data.id, data.projectId, data.partnerId || '', data.type, data.amount, data.date, data.note || '', data.receiptImage || '']);
        output = { status: 'success' };
     }
     else if (action === 'addProject') {
@@ -154,14 +154,15 @@ function handleRequest(e) {
        for (var i = 1; i < values.length; i++) {
          if (String(values[i][0]) === String(data.id)) {
            // Update Row (1-indexed, so i+1)
-           s.getRange(i + 1, 1, 1, 7).setValues([[
+           s.getRange(i + 1, 1, 1, 8).setValues([[
              data.id, 
              data.projectId, 
              data.partnerId || '', 
              data.type, 
              data.amount, 
              data.date, 
-             data.note || ''
+             data.note || '',
+             data.receiptImage || ''
            ]]);
            output = { status: 'success' };
            break;
@@ -218,7 +219,7 @@ function getSheetData(sheet) {
   return result;
 }`;
     navigator.clipboard.writeText(code);
-    alert("✅ คัดลอกโค้ดใหม่แล้ว!\n\nกรุณานำไปวางทับใน Google Apps Script Editor แล้วกด 'Deploy' -> 'New deployment' เพื่ออัปเดตระบบ Backend ให้บันทึกข้อมูลได้ถูกต้อง");
+    alert("✅ คัดลอกโค้ดใหม่แล้ว (รองรับรูปภาพ)!\n\nกรุณานำไปวางทับใน Google Apps Script Editor แล้วกด 'Deploy' -> 'New deployment' เพื่ออัปเดตระบบ Backend");
   };
 
   const handleCreatePartner = (e: React.FormEvent) => {
@@ -332,7 +333,8 @@ function getSheetData(sheet) {
                         <Copy size={16}/>
                       </button>
                       <pre className="bg-slate-800 text-slate-100 p-4 rounded-xl text-xs font-mono overflow-x-auto custom-scrollbar h-64">
-{`function doGet(e) { return handleRequest(e); }
+{`// Updated for Receipt Images
+function doGet(e) { return handleRequest(e); }
 function doPost(e) { return handleRequest(e); }
 
 function handleRequest(e) {
@@ -362,7 +364,8 @@ function handleRequest(e) {
          s = ss.insertSheet(name);
          if (name === 'Partners') s.appendRow(['id', 'name', 'avatar', 'color']);
          if (name === 'Projects') s.appendRow(['id', 'name', 'description', 'status', 'startDate']);
-         if (name === 'Transactions') s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
+         // Added receiptImage column
+         if (name === 'Transactions') s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage']);
        }
     });
 
@@ -376,7 +379,7 @@ function handleRequest(e) {
        // CLEAR ALL DATA
        var sP = ss.getSheetByName('Partners'); sP.clearContents(); sP.appendRow(['id', 'name', 'avatar', 'color']);
        var sPr = ss.getSheetByName('Projects'); sPr.clearContents(); sPr.appendRow(['id', 'name', 'description', 'status', 'startDate']);
-       var sTx = ss.getSheetByName('Transactions'); sTx.clearContents(); sTx.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note']);
+       var sTx = ss.getSheetByName('Transactions'); sTx.clearContents(); sTx.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage']);
        
        // INSERT NEW DATA
        if (data.partners && data.partners.length) {
@@ -388,15 +391,14 @@ function handleRequest(e) {
          sPr.getRange(2, 1, rows.length, 5).setValues(rows);
        }
        if (data.transactions && data.transactions.length) {
-         // Fix: Handle undefined partnerId/note with || '' to ensure empty cell
-         var rows = data.transactions.map(t => [t.id, t.projectId, t.partnerId || '', t.type, t.amount, t.date, t.note || '']);
-         sTx.getRange(2, 1, rows.length, 7).setValues(rows);
+         var rows = data.transactions.map(t => [t.id, t.projectId, t.partnerId || '', t.type, t.amount, t.date, t.note || '', t.receiptImage || '']);
+         sTx.getRange(2, 1, rows.length, 8).setValues(rows);
        }
        output = { status: 'success' };
     } 
     else if (action === 'addTransaction') {
        var s = ss.getSheetByName('Transactions');
-       s.appendRow([data.id, data.projectId, data.partnerId || '', data.type, data.amount, data.date, data.note || '']);
+       s.appendRow([data.id, data.projectId, data.partnerId || '', data.type, data.amount, data.date, data.note || '', data.receiptImage || '']);
        output = { status: 'success' };
     }
     else if (action === 'updateTransaction') {
@@ -405,15 +407,16 @@ function handleRequest(e) {
        output = { status: 'not_found' };
        for (var i = 1; i < values.length; i++) {
          if (String(values[i][0]) === String(data.id)) {
-           // Update Row (1-indexed)
-           s.getRange(i + 1, 1, 1, 7).setValues([[
+           // Update Row (1-indexed) including image
+           s.getRange(i + 1, 1, 1, 8).setValues([[
              data.id, 
              data.projectId, 
              data.partnerId || '', 
              data.type, 
              data.amount, 
              data.date, 
-             data.note || ''
+             data.note || '',
+             data.receiptImage || ''
            ]]);
            output = { status: 'success' };
            break;

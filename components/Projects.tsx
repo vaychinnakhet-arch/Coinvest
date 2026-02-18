@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppState, Project, Transaction, TransactionType, Partner } from '../types';
 import { Card, Button, Input, Select, Badge } from './ui/Components';
-import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban, ChevronDown, ChevronUp } from 'lucide-react';
+import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban, ChevronDown, ChevronUp, Image as ImageIcon, Receipt, Eye } from 'lucide-react';
 
 interface ProjectsProps {
   data: AppState;
@@ -15,6 +15,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(data.projects.length > 0 ? data.projects[0].id : null);
   const [showNewProjectForm, setShowNewProjectForm] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Mobile toggle
+  const [viewImage, setViewImage] = useState<string | null>(null); // For Image Modal
   
   // New Project State
   const [newProjectName, setNewProjectName] = useState('');
@@ -27,6 +28,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [transPartner, setTransPartner] = useState(''); // Empty = Central Pool, ID = Partner OR ProjectID (for cross-project)
   const [transNote, setTransNote] = useState('');
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
+  const [transImage, setTransImage] = useState<string>(''); // Base64 string
 
   // Split Payment State
   const [isSplitMode, setIsSplitMode] = useState(false);
@@ -71,6 +73,50 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setShowNewProjectForm(false);
   };
 
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Compress Image logic
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        
+        // Max dimensions (fit within Google Sheet cell limit effectively)
+        // Reduced to 400px to ensure base64 string fits in 50k char limit
+        const MAX_WIDTH = 400; 
+        const MAX_HEIGHT = 400;
+        let width = img.width;
+        let height = img.height;
+
+        if (width > height) {
+          if (width > MAX_WIDTH) {
+            height *= MAX_WIDTH / width;
+            width = MAX_WIDTH;
+          }
+        } else {
+          if (height > MAX_HEIGHT) {
+            width *= MAX_HEIGHT / height;
+            height = MAX_HEIGHT;
+          }
+        }
+
+        canvas.width = width;
+        canvas.height = height;
+        ctx?.drawImage(img, 0, 0, width, height);
+        
+        // Export to JPEG with lower quality (0.5) to reduce file size
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.5);
+        setTransImage(dataUrl);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+  };
+
   const calculateSplitTotal = () => {
     return (Object.values(splitAmounts) as string[]).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
   };
@@ -110,7 +156,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                amount: totalAmount,
                date: transDate,
                note: sourceProject ? `${transNote} (ปรับปรุง: รับเงินจาก ${sourceProject.name})` : transNote,
-               partnerId: sourceProject ? undefined : (transPartner || undefined)
+               partnerId: sourceProject ? undefined : (transPartner || undefined),
+               receiptImage: transImage
             });
 
             if (sourceProject) {
@@ -159,7 +206,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              amount: amount,
              date: transDate,
              note: `${transNote} (ดึงเงินจากโครงการ: ${sourceProj?.name})`,
-             partnerId: undefined
+             partnerId: undefined,
+             receiptImage: transImage
           });
           onAddTransaction({
              projectId: sourceKey,
@@ -178,7 +226,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              amount: amount,
              date: transDate,
              note: isSplitMode ? `${transNote} (จ่ายโดย ${partnerName})` : transNote,
-             partnerId: sourceKey
+             partnerId: sourceKey,
+             receiptImage: transImage
           });
 
        } else {
@@ -188,7 +237,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              amount: amount,
              date: transDate,
              note: isSplitMode ? `${transNote} (กองกลาง)` : transNote,
-             partnerId: undefined
+             partnerId: undefined,
+             receiptImage: transImage
           });
        }
     });
@@ -200,6 +250,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const resetForm = () => {
     setTransAmount('');
     setTransNote('');
+    setTransImage('');
     setSplitAmounts({});
     if (editingId) {
       setTransType(TransactionType.EXPENSE);
@@ -216,6 +267,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransDate(t.date);
     setTransNote(t.note);
     setTransPartner(t.partnerId || '');
+    setTransImage(t.receiptImage || '');
     setIsSplitMode(false); 
     // Scroll to form on mobile
     if (window.innerWidth < 1024) {
@@ -252,7 +304,25 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   }
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-140px)] h-auto min-h-screen">
+    <div className="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-140px)] h-auto min-h-screen relative">
+      {/* Image Modal */}
+      {viewImage && (
+        <div 
+          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
+          onClick={() => setViewImage(null)}
+        >
+          <div className="relative max-w-2xl w-full max-h-[90vh]">
+             <img src={viewImage} className="w-full h-auto rounded-lg shadow-2xl object-contain max-h-[85vh]" alt="Receipt" />
+             <button 
+               className="absolute -top-10 right-0 text-white hover:text-gray-300"
+               onClick={() => setViewImage(null)}
+             >
+               <X size={32}/>
+             </button>
+          </div>
+        </div>
+      )}
+
       {/* Sidebar List of Projects */}
       <div className={`w-full lg:w-1/4 flex flex-col gap-4 transition-all duration-300 ${isSidebarOpen ? '' : 'lg:flex hidden'}`}>
         <div className="flex justify-between items-center px-1 cursor-pointer lg:cursor-default" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
@@ -388,19 +458,29 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                        <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 font-medium whitespace-nowrap">จ่ายตรง</span>
                                      )}
                                    </div>
-                                   <p className="text-xs text-slate-400 flex items-center gap-2">
-                                     <span className="whitespace-nowrap">{new Date(t.date).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' })}</span>
-                                     <span>•</span>
-                                     {partner ? (
-                                        <span className="flex items-center gap-1 text-slate-500 truncate">
-                                          <User size={12}/> {partner.name}
-                                        </span>
-                                     ) : (
-                                        <span className="flex items-center gap-1 text-slate-500 truncate">
-                                          <Wallet size={12}/> กองกลาง
-                                        </span>
-                                     )}
-                                   </p>
+                                   <div className="flex items-center gap-3">
+                                      <p className="text-xs text-slate-400 flex items-center gap-2">
+                                        <span className="whitespace-nowrap">{new Date(t.date).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' })}</span>
+                                        <span>•</span>
+                                        {partner ? (
+                                           <span className="flex items-center gap-1 text-slate-500 truncate">
+                                             <User size={12}/> {partner.name}
+                                           </span>
+                                        ) : (
+                                           <span className="flex items-center gap-1 text-slate-500 truncate">
+                                             <Wallet size={12}/> กองกลาง
+                                           </span>
+                                        )}
+                                      </p>
+                                      {t.receiptImage && (
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage || null); }}
+                                          className="flex items-center gap-1 text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full hover:bg-slate-200 transition-colors"
+                                        >
+                                           <ImageIcon size={10} /> สลิป
+                                        </button>
+                                      )}
+                                   </div>
                                 </div>
                              </div>
                              
@@ -494,6 +574,29 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                         value={transNote}
                         onChange={e => setTransNote(e.target.value)}
                       />
+
+                      {/* Image Upload */}
+                      <div>
+                        <label className="text-sm font-medium text-slate-600 mb-1.5 block">รูปสลิป/ใบเสร็จ</label>
+                        <div className="flex items-center gap-3">
+                           <div className="relative flex-1">
+                              <input 
+                                type="file" 
+                                accept="image/*" 
+                                onChange={handleImageChange}
+                                className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                              />
+                           </div>
+                           {transImage && (
+                              <div className="w-10 h-10 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage)}>
+                                 <img src={transImage} className="w-full h-full object-cover rounded-lg border border-slate-200" alt="Preview"/>
+                                 <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 cursor-pointer shadow-sm border border-slate-200" onClick={(e) => {e.stopPropagation(); setTransImage('');}}>
+                                    <X size={10} className="text-slate-500"/>
+                                 </div>
+                              </div>
+                           )}
+                        </div>
+                      </div>
 
                       {/* Payment Source Logic */}
                       {transType === TransactionType.EXPENSE ? (

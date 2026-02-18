@@ -98,7 +98,8 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
     const loansGiven: { targetName: string, amount: number }[] = [];
     const loansTaken: { sourceName: string, amount: number }[] = [];
 
-    const extractProjectName = (note: string): string | null => {
+    const extractProjectName = (note: any): string | null => {
+        if (!note || typeof note !== 'string') return null;
         const regex = /(?:นำเงินไปหมุนให้โครงการ:|เงินถูกยืมไปโครงการ:|โอนไปโครงการ:)\s*([^\)-]+)/;
         const match = note.match(regex);
         return match && match[1] ? match[1].trim() : null;

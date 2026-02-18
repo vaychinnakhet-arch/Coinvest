@@ -28,6 +28,7 @@ export interface Transaction {
   amount: number;
   date: string;
   note: string;
+  receiptImage?: string; // Base64 string of the slip/receipt
 }
 
 export interface AppState {
