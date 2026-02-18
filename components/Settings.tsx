@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { AppState, Partner } from '../types';
 import { Card, Button, Input } from './ui/Components';
-import { Upload, Download, Database, FileJson, CheckCircle2, Link, Users, Plus, Trash2, Save, Sheet, Code, Copy, ChevronDown, ChevronUp, CloudUpload, Loader2 } from 'lucide-react';
+import { Upload, Download, Database, FileJson, CheckCircle2, Users, Plus, Trash2, Save, Sheet, Code, Copy, ChevronDown, ChevronUp, CloudUpload, Loader2 } from 'lucide-react';
 import { googleSheetsService } from '../services/googleSheetsService';
 
 interface SettingsProps {

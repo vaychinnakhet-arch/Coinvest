@@ -5,7 +5,7 @@ import { Projects } from './components/Projects';
 import { PartnerSummary } from './components/PartnerSummary';
 import { ProjectSummary } from './components/ProjectSummary';
 import { Settings } from './components/Settings';
-import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3, Sheet } from 'lucide-react';
+import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3 } from 'lucide-react';
 import { googleSheetsService } from './services/googleSheetsService';
 
 // Mock Data for Initial State (Fallback)
