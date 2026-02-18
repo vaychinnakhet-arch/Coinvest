@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { AppState, Partner } from '../types';
 import { Card, Button, Input } from './ui/Components';
-import { Upload, Download, Database, FileJson, CheckCircle2, Users, Plus, Trash2, Save, Sheet, Code, Copy, ChevronDown, ChevronUp, CloudUpload, Loader2 } from 'lucide-react';
+import { Upload, Download, Database, FileJson, CheckCircle2, Users, Plus, Trash2, Save, Sheet, Code, Copy, ChevronDown, ChevronUp, Loader2 } from 'lucide-react';
 import { googleSheetsService } from '../services/googleSheetsService';
 
 interface SettingsProps {
@@ -347,7 +347,7 @@ function deleteRowById(sheet, id) {
             <div className="flex items-center justify-between p-4 bg-white rounded-xl border border-green-200 shadow-sm mt-2">
                 <div className="flex items-center gap-3">
                    <div className="w-10 h-10 rounded-full bg-green-100 flex items-center justify-center text-green-600">
-                      <CloudUpload size={20}/>
+                      <Upload size={20}/>
                    </div>
                    <div>
                       <h4 className="font-bold text-slate-700">อัปโหลดข้อมูลปัจจุบันขึ้น Cloud (Force Sync)</h4>
@@ -359,7 +359,7 @@ function deleteRowById(sheet, id) {
                    disabled={isSyncing || !scriptUrl} 
                    className="bg-indigo-600 hover:bg-indigo-700"
                 >
-                   {isSyncing ? <Loader2 className="animate-spin mr-2" size={16}/> : <CloudUpload className="mr-2" size={16}/>}
+                   {isSyncing ? <Loader2 className="animate-spin mr-2" size={16}/> : <Upload className="mr-2" size={16}/>}
                    {isSyncing ? "กำลังอัปโหลด..." : "อัปโหลดทันที"}
                 </Button>
             </div>
