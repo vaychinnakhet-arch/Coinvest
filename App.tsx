@@ -8,20 +8,11 @@ import { Settings } from './components/Settings';
 import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3, Database } from 'lucide-react';
 import { googleSheetsService } from './services/googleSheetsService';
 
-// Mock Data for Initial State (Fallback)
+// Initial Empty State
 const INITIAL_DATA: AppState = {
-  partners: [
-    { id: 'p1', name: 'คุณเอก', avatar: '👨‍💼', color: '#818CF8' },
-    { id: 'p2', name: 'คุณโท', avatar: '👩‍💼', color: '#34D399' },
-    { id: 'p3', name: 'คุณตรี', avatar: '👨‍💻', color: '#F472B6' },
-  ],
-  projects: [
-    { id: 'proj1', name: 'ร้านกาแฟ สาขา 1', description: 'Renovate ตึกเก่าทำร้านกาแฟสไตล์ Loft', status: 'active', startDate: '2023-01-15' },
-  ],
-  transactions: [
-    { id: 't1', projectId: 'proj1', partnerId: 'p1', type: TransactionType.INVESTMENT, amount: 500000, date: '2023-01-15', note: 'เงินลงทุนก้อนแรก' },
-    { id: 't2', projectId: 'proj1', partnerId: 'p2', type: TransactionType.INVESTMENT, amount: 300000, date: '2023-01-16', note: 'ร่วมทุน' },
-  ]
+  partners: [],
+  projects: [],
+  transactions: []
 };
 
 const App: React.FC = () => {
