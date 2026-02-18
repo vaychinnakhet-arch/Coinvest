@@ -81,9 +81,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setIsProcessingImage(true);
 
     // Google Sheets Cell Limit is 50,000 characters.
-    // Base64 size is ~1.33x original file size.
-    // 35KB file ~ 47KB Base64 string.
-    
     // 1. If file is small (< 35KB), use original directly (Best Quality)
     if (file.size < 35 * 1024) {
        const reader = new FileReader();
@@ -350,17 +347,17 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
         </div>
       )}
 
-      {/* Sidebar List of Projects */}
-      <div className={`w-full lg:w-1/4 flex flex-col gap-4 transition-all duration-300 ${isSidebarOpen ? '' : 'lg:flex hidden'}`}>
+      {/* Sidebar List of Projects - Fixed Width for Balance */}
+      <div className={`w-full lg:w-64 shrink-0 flex flex-col gap-4 transition-all duration-300 ${isSidebarOpen ? '' : 'lg:flex hidden'}`}>
         <div className="flex justify-between items-center px-1 cursor-pointer lg:cursor-default" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
           <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
-            โครงการทั้งหมด 
+            โครงการ
             <span className="lg:hidden text-slate-400 bg-slate-100 rounded-full p-1">
               {isSidebarOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
             </span>
           </h2>
           <Button size="sm" onClick={(e) => { e.stopPropagation(); setShowNewProjectForm(!showNewProjectForm); }}>
-            <Plus size={16} className="mr-1" /> สร้าง
+            <Plus size={16} /> 
           </Button>
         </div>
 
@@ -393,23 +390,21 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
               <div 
                 key={p.id}
                 onClick={() => handleSelectProject(p.id)}
-                className={`p-4 rounded-xl cursor-pointer transition-all border ${
+                className={`p-4 rounded-xl cursor-pointer transition-all border group relative ${
                   selectedProjectId === p.id 
-                    ? 'bg-white border-indigo-400 shadow-md ring-1 ring-indigo-100 relative overflow-hidden' 
+                    ? 'bg-white border-indigo-400 shadow-md ring-1 ring-indigo-100 overflow-hidden' 
                     : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200'
                 }`}
               >
                 {selectedProjectId === p.id && (
-                    <div className="absolute top-0 left-0 w-1 h-full bg-indigo-500"></div>
+                    <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
                 )}
                 <div className="flex justify-between items-start mb-2 pl-2">
-                  <h3 className={`font-bold ${selectedProjectId === p.id ? 'text-indigo-700' : 'text-slate-700'}`}>{p.name}</h3>
+                  <h3 className={`font-bold text-sm ${selectedProjectId === p.id ? 'text-indigo-700' : 'text-slate-700 group-hover:text-slate-900'}`}>{p.name}</h3>
                 </div>
                 <div className="flex justify-between items-center pl-2">
-                   <p className="text-xs text-slate-500 line-clamp-1">{p.description || "ไม่มีรายละเอียด"}</p>
-                   <Badge color={p.status === 'active' ? 'green' : 'yellow'}>
-                      {p.status === 'active' ? 'Active' : 'Plan'}
-                   </Badge>
+                   <p className="text-[10px] text-slate-400 line-clamp-1">{p.description || "ไม่มีรายละเอียด"}</p>
+                   <div className={`w-2 h-2 rounded-full ${p.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
                 </div>
               </div>
             ))}
@@ -425,10 +420,10 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       </div>
 
       {/* Main Content Area */}
-      <div className="w-full lg:w-3/4 flex flex-col h-full overflow-hidden">
+      <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
         {selectedProject ? (
           <div className="flex flex-col h-full gap-6">
-             {/* Mobile Header for Selected Project (When sidebar hidden) */}
+             {/* Mobile Header for Selected Project */}
              {!isSidebarOpen && (
                <div className="lg:hidden flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-slate-100 mb-2" onClick={() => setIsSidebarOpen(true)}>
                   <span className="font-bold text-slate-700 flex items-center gap-2">
@@ -440,31 +435,33 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              )}
 
              {/* Project Header */}
-             <Card className="shrink-0 bg-white border-slate-200 relative overflow-hidden">
+             <Card className="shrink-0 bg-white border-slate-200 relative overflow-hidden p-6">
                 <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
                     <FolderKanban size={150} className="text-indigo-500 transform translate-x-10 -translate-y-10"/>
                 </div>
-                <div className="relative z-10 flex flex-col sm:flex-row justify-between items-start gap-4">
-                    <div>
-                         <h2 className="text-2xl font-bold text-slate-800 mb-1">{selectedProject.name}</h2>
-                         <p className="text-slate-500 mb-4 max-w-2xl text-sm">{selectedProject.description}</p>
-                         <div className="flex flex-wrap gap-4 text-sm text-slate-600 font-medium">
-                           <div className="flex items-center gap-1 bg-slate-100 px-3 py-1 rounded-full">
-                             <Calendar size={14} className="text-slate-500"/> เริ่ม: {new Date(selectedProject.startDate).toLocaleDateString('th-TH')}
-                           </div>
-                         </div>
-                    </div>
+                <div className="relative z-10">
+                   <h2 className="text-2xl font-bold text-slate-800 mb-2">{selectedProject.name}</h2>
+                   <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
+                      <span className="bg-slate-100 px-3 py-1 rounded-full flex items-center gap-2">
+                        <Calendar size={14}/> {new Date(selectedProject.startDate).toLocaleDateString('th-TH')}
+                      </span>
+                      {selectedProject.description && <span>{selectedProject.description}</span>}
+                   </div>
                 </div>
              </Card>
 
-             <div className="flex-1 flex flex-col-reverse xl:flex-row gap-6 min-h-0">
+             {/* Content: List & Form */}
+             {/* Use 2xl breakpoint to stack on smaller laptops for better width */}
+             <div className="flex-1 flex flex-col-reverse 2xl:flex-row gap-6 min-h-0">
+                
                 {/* Transaction List */}
-                <Card className="flex-1 flex flex-col min-h-[400px] xl:min-h-0 overflow-hidden" title="รายการเคลื่อนไหว">
-                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-2">
+                <Card className="flex-1 flex flex-col min-h-[500px] 2xl:min-h-0 overflow-hidden shadow-sm" title="รายการเคลื่อนไหว">
+                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 p-1">
                       {projectTransactions.length === 0 ? (
-                        <div className="text-center py-10 text-slate-400">
-                          <FileText size={32} className="mx-auto mb-2 opacity-50"/>
-                          <p>ยังไม่มีรายการบันทึก</p>
+                        <div className="text-center py-20 text-slate-300">
+                          <FileText size={48} className="mx-auto mb-4 opacity-30"/>
+                          <p className="text-lg">ยังไม่มีรายการบันทึก</p>
+                          <p className="text-sm">เริ่มบันทึกรายการแรกที่ฟอร์มด้านข้าง</p>
                         </div>
                       ) : (
                         projectTransactions.map(t => {
@@ -472,39 +469,47 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                           const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
                           
                           return (
-                          <div key={t.id} className={`flex flex-col sm:flex-row sm:items-center justify-between p-4 rounded-xl border transition-colors group gap-3 sm:gap-0 ${editingId === t.id ? 'bg-amber-50 border-amber-200 shadow-sm' : 'bg-white border-slate-100 hover:border-slate-300 hover:shadow-sm'}`}>
+                          <div key={t.id} className={`flex flex-col sm:flex-row sm:items-start justify-between p-5 rounded-2xl border transition-all duration-200 group gap-4 ${editingId === t.id ? 'bg-amber-50 border-amber-300 shadow-md transform scale-[1.01]' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
                              {/* Left: Icon & Info */}
-                             <div className="flex items-center gap-3 sm:gap-4 overflow-hidden">
-                                <div className={`w-10 h-10 sm:w-12 sm:h-12 rounded-2xl flex items-center justify-center shrink-0 ${getTransactionColor(t.type)}`}>
-                                   {t.type === TransactionType.INCOME ? <Plus size={20}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={20}/> : <ArrowRight size={20} className="-rotate-45"/>}
+                             <div className="flex items-start gap-4 overflow-hidden flex-1 min-w-0">
+                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm mt-1 ${getTransactionColor(t.type)}`}>
+                                   {t.type === TransactionType.INCOME ? <Plus size={22}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={22}/> : <ArrowRight size={22} className="-rotate-45"/>}
                                 </div>
-                                <div className="min-w-0">
-                                   <div className="flex items-center gap-2 mb-1 flex-wrap">
-                                     <p className="font-bold text-slate-700 text-sm sm:text-base truncate max-w-[200px] sm:max-w-xs">{t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}</p>
-                                     {isDirectPayment && (
-                                       <span className="text-[10px] bg-indigo-100 text-indigo-700 px-1.5 py-0.5 rounded border border-indigo-200 font-medium whitespace-nowrap">จ่ายตรง</span>
-                                     )}
+                                <div className="min-w-0 flex-1">
+                                   <div className="mb-1.5 pr-2">
+                                     {/* Note Text: Break Words and Line Clamp */}
+                                     <p className="font-bold text-slate-800 text-base leading-snug break-words line-clamp-3">
+                                       {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
+                                     </p>
                                    </div>
-                                   <div className="flex items-center gap-3">
-                                      <p className="text-xs text-slate-400 flex items-center gap-2">
-                                        <span className="whitespace-nowrap">{new Date(t.date).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' })}</span>
-                                        <span>•</span>
-                                        {partner ? (
-                                           <span className="flex items-center gap-1 text-slate-500 truncate">
-                                             <User size={12}/> {partner.name}
-                                           </span>
-                                        ) : (
-                                           <span className="flex items-center gap-1 text-slate-500 truncate">
-                                             <Wallet size={12}/> กองกลาง
-                                           </span>
-                                        )}
-                                      </p>
+                                   
+                                   <div className="flex flex-wrap items-center gap-3 mt-2">
+                                      <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 whitespace-nowrap">
+                                        {new Date(t.date).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' })}
+                                      </span>
+                                      
+                                      {partner ? (
+                                         <span className="flex items-center gap-1 text-xs text-slate-500 font-medium bg-slate-50 px-2 py-1 rounded-md border border-slate-100 max-w-[120px] truncate">
+                                           <User size={12}/> {partner.name}
+                                         </span>
+                                      ) : (
+                                         <span className="flex items-center gap-1 text-xs text-slate-500 font-medium bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                                           <Wallet size={12}/> กองกลาง
+                                         </span>
+                                      )}
+
+                                      {isDirectPayment && (
+                                       <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-bold whitespace-nowrap">
+                                         จ่ายตรง
+                                       </span>
+                                      )}
+
                                       {t.receiptImage && (
                                         <button 
                                           onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage || null); }}
-                                          className="flex items-center gap-1 text-[10px] bg-slate-100 text-slate-600 px-2 py-0.5 rounded-full hover:bg-slate-200 transition-colors"
+                                          className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
                                         >
-                                           <ImageIcon size={10} /> สลิป
+                                           <ImageIcon size={12} /> ดูสลิป
                                         </button>
                                       )}
                                    </div>
@@ -512,28 +517,28 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                              </div>
                              
                              {/* Right: Amount & Actions */}
-                             <div className="flex items-center justify-between sm:justify-end gap-4 pl-14 sm:pl-0 w-full sm:w-auto">
-                                <span className={`font-bold text-lg ${
+                             <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 pl-0 sm:pl-4 w-full sm:w-auto shrink-0 border-t sm:border-t-0 border-slate-50 pt-3 sm:pt-0 mt-2 sm:mt-0">
+                                <span className={`font-bold text-xl tracking-tight ${
                                   t.type === TransactionType.INCOME ? 'text-emerald-600' : 
                                   t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
                                 }`}>
                                   {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
                                 </span>
                                 
-                                <div className="flex gap-1 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
+                                <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
                                   <button
                                     onClick={(e) => { e.stopPropagation(); startEditing(t); }}
                                     className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
                                     title="แก้ไข"
                                   >
-                                    <Pencil size={18} />
+                                    <Pencil size={16} />
                                   </button>
                                   <button 
                                     onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
                                     className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
                                     title="ลบ"
                                   >
-                                    <Trash2 size={18} />
+                                    <Trash2 size={16} />
                                   </button>
                                 </div>
                              </div>
@@ -543,16 +548,16 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                    </div>
                 </Card>
 
-                {/* Add/Edit Transaction Form */}
+                {/* Add/Edit Transaction Form - Fixed Width on Large Screens */}
                 <Card 
                   id="transaction-form"
-                  className={`w-full xl:w-96 shrink-0 h-fit transition-colors duration-300 ${editingId ? 'ring-2 ring-amber-400 border-amber-200' : ''}`} 
+                  className={`w-full 2xl:w-96 shrink-0 h-fit transition-all duration-300 shadow-sm ${editingId ? 'ring-2 ring-amber-400 border-amber-200 shadow-xl' : 'border-slate-200'}`} 
                   title={editingId ? "แก้ไขรายการ" : "บันทึกรายการ"}
                   action={editingId && (
                     <button onClick={cancelEditing} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
                   )}
                 >
-                   <form onSubmit={handleFormSubmit} className="flex flex-col gap-4">
+                   <form onSubmit={handleFormSubmit} className="flex flex-col gap-5">
                       {/* Transaction Type Tabs */}
                       <div className="flex gap-2 p-1.5 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar">
                         {[
@@ -584,7 +589,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                         value={transAmount}
                         onChange={e => setTransAmount(e.target.value)}
                         required
-                        className="font-mono text-xl font-bold text-slate-700"
+                        className="font-mono text-2xl font-bold text-slate-800 text-right tracking-tight bg-slate-50 border-slate-200 focus:bg-white transition-all"
                       />
 
                       <Input 
@@ -600,30 +605,31 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                         label="บันทึกช่วยจำ"
                         value={transNote}
                         onChange={e => setTransNote(e.target.value)}
+                        className="bg-slate-50 border-slate-200 focus:bg-white transition-all"
                       />
 
                       {/* Image Upload */}
                       <div>
-                        <label className="text-sm font-medium text-slate-600 mb-1.5 block">รูปสลิป/ใบเสร็จ</label>
-                        <div className="flex items-center gap-3">
+                        <label className="text-sm font-medium text-slate-600 mb-2 block">รูปสลิป/ใบเสร็จ</label>
+                        <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
                            <div className="relative flex-1">
                               <input 
                                 type="file" 
                                 accept="image/*" 
                                 onChange={handleImageChange}
-                                className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100"
+                                className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
                               />
                            </div>
                            {isProcessingImage && (
-                             <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium">
-                               <Loader2 size={12} className="animate-spin"/> กำลังย่อรูป...
+                             <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
+                               <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
                              </div>
                            )}
                            {transImage && !isProcessingImage && (
-                              <div className="w-10 h-10 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage)}>
-                                 <img src={transImage} className="w-full h-full object-cover rounded-lg border border-slate-200" alt="Preview"/>
-                                 <div className="absolute -top-1 -right-1 bg-white rounded-full p-0.5 cursor-pointer shadow-sm border border-slate-200" onClick={(e) => {e.stopPropagation(); setTransImage('');}}>
-                                    <X size={10} className="text-slate-500"/>
+                              <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage)}>
+                                 <img src={transImage} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview"/>
+                                 <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage('');}}>
+                                    <X size={12} className="text-slate-500 hover:text-rose-500"/>
                                  </div>
                               </div>
                            )}
@@ -632,7 +638,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
                       {/* Payment Source Logic */}
                       {transType === TransactionType.EXPENSE ? (
-                         <div className="flex flex-col gap-2 w-full pt-2 border-t border-slate-100 mt-2">
+                         <div className="flex flex-col gap-3 w-full pt-4 border-t border-slate-100 mt-2">
                            {/* Label & Toggle */}
                            <div className="flex justify-between items-center">
                               <label className="text-sm font-medium text-slate-600">
@@ -641,7 +647,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                               <button 
                                 type="button"
                                 onClick={handleToggleSplitMode}
-                                className={`text-xs flex items-center gap-1 px-3 py-1.5 rounded-full transition-colors border ${isSplitMode ? 'bg-indigo-50 border-indigo-200 text-indigo-600 font-bold' : 'bg-white border-slate-200 text-slate-500 hover:bg-slate-50'}`}
+                                className={`text-xs flex items-center gap-1 px-3 py-1.5 rounded-full transition-colors border shadow-sm ${isSplitMode ? 'bg-indigo-600 border-indigo-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
                               >
                                  <Split size={14}/> {isSplitMode ? 'จ่ายหลายทาง' : 'จ่ายทางเดียว'}
                               </button>
@@ -649,21 +655,21 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
                             {/* Split Mode */}
                            {isSplitMode ? (
-                               <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-200 max-h-72 overflow-y-auto custom-scrollbar">
-                                  <div className="flex justify-between text-xs text-slate-500 mb-1 font-medium">
-                                    <span>กระจายยอดจ่าย</span>
-                                    <span className={calculateSplitTotal() === parseFloat(transAmount || '0') ? 'text-emerald-600' : 'text-rose-500'}>
-                                      รวม: {calculateSplitTotal().toLocaleString()} / {parseFloat(transAmount || '0').toLocaleString()}
+                               <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-200 max-h-72 overflow-y-auto custom-scrollbar shadow-inner">
+                                  <div className="flex justify-between text-xs text-slate-500 mb-1 font-medium bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
+                                    <span>ยอดที่ต้องจ่าย</span>
+                                    <span className={calculateSplitTotal() === parseFloat(transAmount || '0') ? 'text-emerald-600 font-bold' : 'text-rose-500 font-bold'}>
+                                      {calculateSplitTotal().toLocaleString()} / {parseFloat(transAmount || '0').toLocaleString()}
                                     </span>
                                   </div>
                                   
                                   <div className="flex items-center gap-2">
-                                     <div className="w-9 h-9 rounded-full bg-slate-200 flex items-center justify-center text-xs text-slate-600 shrink-0"><Wallet size={16}/></div>
+                                     <div className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-600 shrink-0 shadow-sm"><Wallet size={16}/></div>
                                      <span className="text-sm font-medium text-slate-600 flex-1">กองกลาง</span>
                                      <input 
                                        type="number" 
                                        placeholder="0"
-                                       className="w-24 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                       className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
                                        value={splitAmounts['POOL'] || ''}
                                        onChange={e => setSplitAmounts(prev => ({...prev, 'POOL': e.target.value}))}
                                      />
@@ -671,14 +677,14 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
                                   {data.partners.map(p => (
                                     <div key={p.id} className="flex items-center gap-2">
-                                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs text-white shrink-0 shadow-sm" style={{background: p.color}}>
+                                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs text-white shrink-0 shadow-sm ring-2 ring-white" style={{background: p.color}}>
                                         {p.avatar}
                                       </div>
                                       <span className="text-sm font-medium text-slate-600 flex-1 truncate">{p.name}</span>
                                       <input 
                                         type="number" 
                                         placeholder="0"
-                                        className="w-24 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                        className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
                                         value={splitAmounts[p.id] || ''}
                                         onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
                                       />
@@ -690,14 +696,14 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                       <div className="text-[11px] text-slate-400 font-bold mt-3 pt-2 border-t border-slate-200">โครงการอื่น</div>
                                       {otherProjects.map(p => (
                                         <div key={p.id} className="flex items-center gap-2">
-                                          <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0">
+                                          <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-sm">
                                             <Building2 size={16}/>
                                           </div>
                                           <span className="text-sm font-medium text-slate-600 flex-1 truncate">{p.name}</span>
                                           <input 
                                             type="number" 
                                             placeholder="0"
-                                            className="w-24 px-2 py-1.5 text-sm rounded border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none"
+                                            className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
                                             value={splitAmounts[p.id] || ''}
                                             onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
                                           />
@@ -738,13 +744,13 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                          />
                       )}
                       
-                      <div className="flex gap-2 mt-2 pt-2 border-t border-slate-100">
+                      <div className="flex gap-3 mt-4 pt-4 border-t border-slate-100">
                          {editingId && (
                             <Button type="button" variant="secondary" className="flex-1" onClick={cancelEditing}>
                                ยกเลิก
                             </Button>
                          )}
-                         <Button type="submit" className="flex-1 py-3 text-base" disabled={!transAmount || isProcessingImage}>
+                         <Button type="submit" className={`flex-1 py-3 text-base font-medium shadow-md shadow-indigo-200 ${isProcessingImage ? 'opacity-80 cursor-wait' : ''}`} disabled={!transAmount || isProcessingImage}>
                            {isProcessingImage ? 'กำลังเตรียมรูป...' : editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
                          </Button>
                       </div>
@@ -753,9 +759,11 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              </div>
           </div>
         ) : (
-           <div className="flex-1 flex flex-col items-center justify-center text-slate-400 min-h-[50vh]">
-              <FolderOpen size={64} className="mb-4 opacity-20"/>
-              <p className="text-lg">เลือกโครงการ</p>
+           <div className="flex-1 flex flex-col items-center justify-center text-slate-300 min-h-[50vh]">
+              <div className="bg-slate-50 p-6 rounded-full mb-4">
+                 <FolderOpen size={48} className="opacity-40"/>
+              </div>
+              <p className="text-xl font-bold text-slate-400">เลือกโครงการ</p>
               <p className="text-sm">เพื่อจัดการรายรับรายจ่าย</p>
            </div>
         )}
