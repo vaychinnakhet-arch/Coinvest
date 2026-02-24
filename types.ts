@@ -29,6 +29,7 @@ export interface Transaction {
   date: string;
   note: string;
   receiptImage?: string; // Base64 string of the slip/receipt
+  receiptImage2?: string; // Base64 string of the second slip/receipt
 }
 
 export interface AppState {

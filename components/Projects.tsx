@@ -29,7 +29,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [transNote, setTransNote] = useState('');
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
   const [transImage, setTransImage] = useState<string>(''); // Base64 string
+  const [transImage2, setTransImage2] = useState<string>(''); // Base64 string
   const [isProcessingImage, setIsProcessingImage] = useState(false);
+  const [isProcessingImage2, setIsProcessingImage2] = useState(false);
 
   // Split Payment State
   const [isSplitMode, setIsSplitMode] = useState(false);
@@ -74,19 +76,22 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setShowNewProjectForm(false);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isSecondImage: boolean = false) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    setIsProcessingImage(true);
+    const setProcessing = isSecondImage ? setIsProcessingImage2 : setIsProcessingImage;
+    const setImage = isSecondImage ? setTransImage2 : setTransImage;
+
+    setProcessing(true);
 
     // Google Sheets Cell Limit is 50,000 characters.
     // 1. If file is small (< 35KB), use original directly (Best Quality)
     if (file.size < 35 * 1024) {
        const reader = new FileReader();
        reader.onload = (ev) => {
-          setTransImage(ev.target?.result as string);
-          setIsProcessingImage(false);
+          setImage(ev.target?.result as string);
+          setProcessing(false);
        };
        reader.readAsDataURL(file);
        return;
@@ -132,8 +137,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
             dataUrl = canvas.toDataURL('image/jpeg', quality);
         }
 
-        setTransImage(dataUrl);
-        setIsProcessingImage(false);
+        setImage(dataUrl);
+        setProcessing(false);
       };
       img.src = event.target?.result as string;
     };
@@ -158,7 +163,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjectId || !transAmount || isProcessingImage) return;
+    if (!selectedProjectId || !transAmount || isProcessingImage || isProcessingImage2) return;
 
     const totalAmount = parseFloat(transAmount);
 
@@ -180,7 +185,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                date: transDate,
                note: sourceProject ? `${transNote} (ปรับปรุง: รับเงินจาก ${sourceProject.name})` : transNote,
                partnerId: sourceProject ? undefined : (transPartner || undefined),
-               receiptImage: transImage
+               receiptImage: transImage,
+               receiptImage2: transImage2
             });
 
             if (sourceProject) {
@@ -230,7 +236,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              date: transDate,
              note: `${transNote} (ดึงเงินจากโครงการ: ${sourceProj?.name})`,
              partnerId: undefined,
-             receiptImage: transImage
+             receiptImage: transImage,
+             receiptImage2: transImage2
           });
           onAddTransaction({
              projectId: sourceKey,
@@ -250,7 +257,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              date: transDate,
              note: isSplitMode ? `${transNote} (จ่ายโดย ${partnerName})` : transNote,
              partnerId: sourceKey,
-             receiptImage: transImage
+             receiptImage: transImage,
+             receiptImage2: transImage2
           });
 
        } else {
@@ -261,7 +269,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              date: transDate,
              note: isSplitMode ? `${transNote} (กองกลาง)` : transNote,
              partnerId: undefined,
-             receiptImage: transImage
+             receiptImage: transImage,
+             receiptImage2: transImage2
           });
        }
     });
@@ -274,7 +283,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransAmount('');
     setTransNote('');
     setTransImage('');
+    setTransImage2('');
     setIsProcessingImage(false);
+    setIsProcessingImage2(false);
     setSplitAmounts({});
     if (editingId) {
       setTransType(TransactionType.EXPENSE);
@@ -292,6 +303,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransNote(t.note);
     setTransPartner(t.partnerId || '');
     setTransImage(t.receiptImage || '');
+    setTransImage2(t.receiptImage2 || '');
     setIsSplitMode(false); 
     // Scroll to form on mobile
     if (window.innerWidth < 1024) {
@@ -509,7 +521,15 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                           onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage || null); }}
                                           className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
                                         >
-                                           <ImageIcon size={12} /> ดูสลิป
+                                           <ImageIcon size={12} /> ดูสลิป 1
+                                        </button>
+                                      )}
+                                      {t.receiptImage2 && (
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage2 || null); }}
+                                          className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
+                                        >
+                                           <ImageIcon size={12} /> ดูสลิป 2
                                         </button>
                                       )}
                                    </div>
@@ -610,29 +630,57 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
                       {/* Image Upload */}
                       <div>
-                        <label className="text-sm font-medium text-slate-600 mb-2 block">รูปสลิป/ใบเสร็จ</label>
-                        <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                           <div className="relative flex-1">
-                              <input 
-                                type="file" 
-                                accept="image/*" 
-                                onChange={handleImageChange}
-                                className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                              />
-                           </div>
-                           {isProcessingImage && (
-                             <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                               <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
+                        <label className="text-sm font-medium text-slate-600 mb-2 block">รูปสลิป/ใบเสร็จ (สูงสุด 2 รูป)</label>
+                        <div className="flex flex-col gap-3">
+                          {/* Image 1 */}
+                          <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                             <div className="relative flex-1">
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  onChange={(e) => handleImageChange(e, false)}
+                                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
+                                />
                              </div>
-                           )}
-                           {transImage && !isProcessingImage && (
-                              <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage)}>
-                                 <img src={transImage} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview"/>
-                                 <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage('');}}>
-                                    <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                                 </div>
-                              </div>
-                           )}
+                             {isProcessingImage && (
+                               <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
+                                 <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
+                               </div>
+                             )}
+                             {transImage && !isProcessingImage && (
+                                <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage)}>
+                                   <img src={transImage} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview"/>
+                                   <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage('');}}>
+                                      <X size={12} className="text-slate-500 hover:text-rose-500"/>
+                                   </div>
+                                </div>
+                             )}
+                          </div>
+
+                          {/* Image 2 */}
+                          <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                             <div className="relative flex-1">
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  onChange={(e) => handleImageChange(e, true)}
+                                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
+                                />
+                             </div>
+                             {isProcessingImage2 && (
+                               <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
+                                 <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
+                               </div>
+                             )}
+                             {transImage2 && !isProcessingImage2 && (
+                                <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage2)}>
+                                   <img src={transImage2} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 2"/>
+                                   <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage2('');}}>
+                                      <X size={12} className="text-slate-500 hover:text-rose-500"/>
+                                   </div>
+                                </div>
+                             )}
+                          </div>
                         </div>
                       </div>
 
@@ -750,8 +798,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                ยกเลิก
                             </Button>
                          )}
-                         <Button type="submit" className={`flex-1 py-3 text-base font-medium shadow-md shadow-indigo-200 ${isProcessingImage ? 'opacity-80 cursor-wait' : ''}`} disabled={!transAmount || isProcessingImage}>
-                           {isProcessingImage ? 'กำลังเตรียมรูป...' : editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
+                         <Button type="submit" className={`flex-1 py-3 text-base font-medium shadow-md shadow-indigo-200 ${isProcessingImage || isProcessingImage2 ? 'opacity-80 cursor-wait' : ''}`} disabled={!transAmount || isProcessingImage || isProcessingImage2}>
+                           {isProcessingImage || isProcessingImage2 ? 'กำลังเตรียมรูป...' : editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
                          </Button>
                       </div>
                    </form>
