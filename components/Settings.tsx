@@ -305,42 +305,48 @@ function getSheetData(sheet) {
   return (
     <div className="space-y-8 pb-10">
       {/* Cloud Sync Config */}
-      <Card title="ตั้งค่าการเชื่อมต่อ (Cloud Sync)" className="border-indigo-100 bg-indigo-50/30">
-         <div className="space-y-4">
+      <Card title="ตั้งค่าการเชื่อมต่อ (Cloud Sync)" className="border-indigo-100 bg-indigo-50/30 shadow-sm !p-6 md:!p-8">
+         <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-4 items-end">
-               <Input 
-                 label="Google Apps Script URL" 
-                 value={scriptUrl} 
-                 onChange={e => setScriptUrl(e.target.value)} 
-                 placeholder="https://script.google.com/macros/s/.../exec"
-                 className="font-mono text-xs"
-               />
-               <div className="flex gap-2">
-                 <Button onClick={handleSaveUrl} className="whitespace-nowrap">
-                   <Save size={16} className="mr-1"/> บันทึก URL
+               <div className="w-full">
+                 <Input 
+                   label="Google Apps Script URL" 
+                   value={scriptUrl} 
+                   onChange={e => setScriptUrl(e.target.value)} 
+                   placeholder="https://script.google.com/macros/s/.../exec"
+                   className="font-mono text-xs md:text-sm"
+                 />
+               </div>
+               <div className="flex gap-3 w-full md:w-auto">
+                 <Button onClick={handleSaveUrl} className="whitespace-nowrap flex-1 md:flex-none shadow-indigo-200/50">
+                   <Save size={18} className="mr-2"/> บันทึก URL
                  </Button>
-                 <Button onClick={handleResetUrl} variant="ghost" className="whitespace-nowrap text-slate-500 hover:text-rose-500" title="รีเซ็ตเป็นค่าเริ่มต้น">
-                   <RotateCcw size={16} className="mr-1"/> รีเซ็ต
+                 <Button onClick={handleResetUrl} variant="ghost" className="whitespace-nowrap text-slate-500 hover:text-rose-500 hover:bg-rose-50" title="รีเซ็ตเป็นค่าเริ่มต้น">
+                   <RotateCcw size={18} className="mr-2"/> รีเซ็ต
                  </Button>
                  {scriptUrl && (
-                   <Button onClick={handleForceSync} disabled={isSyncing} variant="secondary" className="whitespace-nowrap">
-                     {isSyncing ? <Loader2 size={16} className="animate-spin mr-1"/> : <Database size={16} className="mr-1"/>}
+                   <Button onClick={handleForceSync} disabled={isSyncing} variant="secondary" className="whitespace-nowrap flex-1 md:flex-none">
+                     {isSyncing ? <Loader2 size={18} className="animate-spin mr-2"/> : <Database size={18} className="mr-2"/>}
                      Force Upload
                    </Button>
                  )}
                </div>
             </div>
 
-            <div className="bg-white p-4 rounded-xl border border-slate-200">
+            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm transition-all duration-300">
                 <div 
-                   className="flex justify-between items-center cursor-pointer" 
+                   className="flex justify-between items-center cursor-pointer group" 
                    onClick={() => setShowCode(!showCode)}
                 >
-                  <div className="flex items-center gap-2 text-slate-700 font-medium">
-                    <Sheet size={20} className="text-green-600"/>
+                  <div className="flex items-center gap-3 text-slate-700 font-bold">
+                    <div className="p-2 bg-emerald-50 text-emerald-600 rounded-xl group-hover:scale-110 transition-transform">
+                      <Sheet size={20}/>
+                    </div>
                     <span>วิธีการติดตั้ง Google Sheets API (Update Script)</span>
                   </div>
-                  {showCode ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
+                  <div className="p-2 rounded-full hover:bg-slate-50 transition-colors">
+                    {showCode ? <ChevronUp size={20} className="text-slate-400"/> : <ChevronDown size={20} className="text-slate-400"/>}
+                  </div>
                 </div>
                 
                 {showCode && (
@@ -546,14 +552,14 @@ function getSheetData(sheet) {
       </Card>
 
       {/* Partner Management Section */}
-      <Card title="จัดการรายชื่อหุ้นส่วน (Partner Management)" className="border-slate-200">
-         <div className="flex flex-col md:flex-row gap-8">
+      <Card title="จัดการรายชื่อหุ้นส่วน (Partner Management)" className="border-slate-100 shadow-sm !p-6 md:!p-8">
+         <div className="flex flex-col md:flex-row gap-8 lg:gap-12">
             {/* Form */}
-            <div className="w-full md:w-1/3 space-y-4">
-               <h4 className="font-semibold text-slate-700 flex items-center gap-2">
-                 <Plus size={18} className="text-indigo-500"/> เพิ่มหุ้นส่วนใหม่
+            <div className="w-full md:w-1/3 space-y-6">
+               <h4 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight">
+                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Plus size={18}/></div> เพิ่มหุ้นส่วนใหม่
                </h4>
-               <form onSubmit={handleCreatePartner} className="space-y-4 p-4 bg-slate-50 rounded-xl border border-slate-100">
+               <form onSubmit={handleCreatePartner} className="space-y-5 p-5 bg-slate-50/50 rounded-3xl border border-slate-100">
                   <Input 
                     label="ชื่อหุ้นส่วน" 
                     value={newPartnerName} 
@@ -562,15 +568,15 @@ function getSheetData(sheet) {
                     required
                   />
                   
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 mb-2 block">เลือก Avatar</label>
+                  <div className="space-y-3">
+                    <label className="text-sm font-semibold text-slate-700 block">เลือก Avatar</label>
                     <div className="flex gap-2 flex-wrap">
                        {emojiPalette.map(emoji => (
                          <button 
                            key={emoji}
                            type="button"
                            onClick={() => setNewPartnerAvatar(emoji)}
-                           className={`w-9 h-9 rounded-lg text-lg flex items-center justify-center transition-all ${newPartnerAvatar === emoji ? 'bg-white shadow-md scale-110' : 'bg-slate-100 hover:bg-slate-200'}`}
+                           className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all duration-200 ${newPartnerAvatar === emoji ? 'bg-white shadow-md shadow-slate-200/50 scale-110 ring-2 ring-indigo-500 ring-offset-1' : 'bg-white border border-slate-200 hover:bg-slate-50 hover:scale-105'}`}
                          >
                            {emoji}
                          </button>
@@ -578,51 +584,53 @@ function getSheetData(sheet) {
                     </div>
                   </div>
 
-                  <div>
-                    <label className="text-sm font-medium text-slate-600 mb-2 block">เลือกสีประจำตัว</label>
-                    <div className="flex gap-2 flex-wrap">
+                  <div className="space-y-3">
+                    <label className="text-sm font-semibold text-slate-700 block">เลือกสีประจำตัว</label>
+                    <div className="flex gap-2.5 flex-wrap">
                        {colorPalette.map(color => (
                          <button 
                            key={color}
                            type="button"
                            onClick={() => setNewPartnerColor(color)}
-                           className={`w-8 h-8 rounded-full transition-all border-2 ${newPartnerColor === color ? 'border-slate-500 scale-110' : 'border-transparent'}`}
+                           className={`w-8 h-8 rounded-full transition-all duration-200 border-2 ${newPartnerColor === color ? 'border-white shadow-[0_0_0_2px_rgba(99,102,241,1)] scale-110' : 'border-transparent hover:scale-110 shadow-sm'}`}
                            style={{ backgroundColor: color }}
                          />
                        ))}
                     </div>
                   </div>
 
-                  <Button type="submit" className="w-full">เพิ่มหุ้นส่วน</Button>
+                  <Button type="submit" className="w-full mt-2 py-3">เพิ่มหุ้นส่วน</Button>
                </form>
             </div>
 
             {/* List */}
             <div className="w-full md:w-2/3">
-               <h4 className="font-semibold text-slate-700 flex items-center gap-2 mb-4">
-                 <Users size={18} className="text-indigo-500"/> รายชื่อหุ้นส่วนปัจจุบัน ({data.partners.length})
+               <h4 className="font-bold text-slate-800 flex items-center gap-2 mb-6 text-lg tracking-tight">
+                 <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Users size={18}/></div> รายชื่อหุ้นส่วนปัจจุบัน ({data.partners.length})
                </h4>
-               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {data.partners.map(p => (
-                    <div key={p.id} className="flex items-center justify-between p-3 bg-white border border-slate-200 rounded-xl shadow-sm hover:shadow-md transition-shadow">
-                       <div className="flex items-center gap-3">
-                          <div className="w-10 h-10 rounded-full flex items-center justify-center text-lg shadow-sm" style={{ backgroundColor: p.color + '20' }}>
+                    <div key={p.id} className="flex flex-col p-4 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 group relative overflow-hidden">
+                       <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
+                         <button 
+                           onClick={() => {
+                             if(confirm(`ยืนยันการลบหุ้นส่วน "${p.name}"?`)) onDeletePartner(p.id);
+                           }}
+                           className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
+                           title="ลบหุ้นส่วน"
+                         >
+                           <Trash2 size={16}/>
+                         </button>
+                       </div>
+                       <div className="flex items-center gap-4 mb-3">
+                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm ring-1 ring-black/5" style={{ backgroundColor: p.color + '15' }}>
                              {p.avatar}
                           </div>
                           <div>
-                             <p className="font-bold text-slate-700">{p.name}</p>
-                             <div className="w-16 h-1 rounded-full mt-1" style={{ backgroundColor: p.color }}></div>
+                             <p className="font-bold text-slate-800 text-base">{p.name}</p>
+                             <div className="w-8 h-1.5 rounded-full mt-1.5 opacity-80" style={{ backgroundColor: p.color }}></div>
                           </div>
                        </div>
-                       <button 
-                         onClick={() => {
-                           if(confirm(`ยืนยันการลบหุ้นส่วน "${p.name}"?`)) onDeletePartner(p.id);
-                         }}
-                         className="p-2 text-slate-300 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                         title="ลบหุ้นส่วน"
-                       >
-                         <Trash2 size={18}/>
-                       </button>
                     </div>
                   ))}
                </div>
@@ -630,29 +638,29 @@ function getSheetData(sheet) {
          </div>
       </Card>
 
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         {/* Export Section */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-            <div className="w-12 h-12 bg-indigo-50 text-indigo-600 rounded-xl flex items-center justify-center mb-4">
-              <Download size={24} />
+        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center group hover:shadow-md transition-all duration-300">
+            <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
+              <Download size={28} />
             </div>
-            <h3 className="font-bold text-slate-800">Export JSON</h3>
-            <p className="text-slate-500 text-sm mb-4">สำรองข้อมูลเก็บไว้ในเครื่อง</p>
-            <Button onClick={handleExport} variant="secondary" className="w-full">
-               <FileJson className="mr-2" size={16}/> ดาวน์โหลดไฟล์
+            <h3 className="font-bold text-slate-800 text-lg">Export JSON</h3>
+            <p className="text-slate-500 text-sm mb-6">สำรองข้อมูลเก็บไว้ในเครื่อง</p>
+            <Button onClick={handleExport} variant="secondary" className="w-full py-3">
+               <FileJson className="mr-2" size={18}/> ดาวน์โหลดไฟล์
             </Button>
         </div>
 
         {/* Import Section */}
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm flex flex-col items-center text-center">
-            <div className={`w-12 h-12 rounded-xl flex items-center justify-center mb-4 ${importStatus === 'error' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
-              {importStatus === 'success' ? <CheckCircle2 size={24}/> : <Upload size={24} />}
+        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center group hover:shadow-md transition-all duration-300">
+            <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300 ${importStatus === 'error' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
+              {importStatus === 'success' ? <CheckCircle2 size={28}/> : <Upload size={28} />}
             </div>
-            <h3 className="font-bold text-slate-800">Import JSON</h3>
-            <p className="text-slate-500 text-sm mb-4">กู้คืนข้อมูลจากไฟล์ Backup</p>
+            <h3 className="font-bold text-slate-800 text-lg">Import JSON</h3>
+            <p className="text-slate-500 text-sm mb-6">กู้คืนข้อมูลจากไฟล์ Backup</p>
             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="application/json" className="hidden" />
-            <Button onClick={handleImportClick} variant="secondary" className="w-full">
-               <Upload className="mr-2" size={16}/> อัปโหลดไฟล์
+            <Button onClick={handleImportClick} variant="secondary" className="w-full py-3">
+               <Upload className="mr-2" size={18}/> อัปโหลดไฟล์
             </Button>
         </div>
       </div>

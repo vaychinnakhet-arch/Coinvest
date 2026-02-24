@@ -5,7 +5,8 @@ import { Projects } from './components/Projects';
 import { PartnerSummary } from './components/PartnerSummary';
 import { ProjectSummary } from './components/ProjectSummary';
 import { Settings } from './components/Settings';
-import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3, Database } from 'lucide-react';
+import { Accounts } from './components/Accounts';
+import { LayoutDashboard, FolderKanban, Users, Settings as SettingsIcon, PieChart, BarChart3, Database, FileText } from 'lucide-react';
 import { googleSheetsService } from './services/googleSheetsService';
 
 // Initial Empty State
@@ -193,24 +194,24 @@ const App: React.FC = () => {
     return (
       <button
         onClick={() => setView(viewName)}
-        className={`relative group flex items-center gap-4 px-4 py-4 rounded-2xl transition-all duration-300 w-full text-left ${
+        className={`relative group flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 w-full text-left ${
           isActive 
-            ? 'bg-gradient-to-r from-indigo-600 to-indigo-500 text-white shadow-xl shadow-indigo-200 scale-100' 
-            : 'text-slate-500 hover:bg-white hover:text-indigo-600 hover:shadow-md hover:shadow-slate-100 hover:scale-[1.02]'
+            ? 'bg-indigo-600 text-white shadow-md shadow-indigo-200/50' 
+            : 'text-slate-500 hover:bg-slate-100 hover:text-indigo-600'
         }`}
       >
         {/* Icon Container */}
-        <div className={`p-2.5 rounded-xl transition-all duration-300 ${
+        <div className={`p-2 rounded-xl transition-all duration-300 ${
           isActive 
             ? 'bg-white/20 text-white' 
-            : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
+            : 'bg-white text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600 shadow-sm'
         }`}>
           <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
         </div>
         
         {/* Text */}
         <div className="flex flex-col">
-          <span className={`font-semibold text-sm ${isActive ? 'text-white' : 'text-slate-600 group-hover:text-indigo-900'}`}>
+          <span className={`font-semibold text-sm ${isActive ? 'text-white' : 'text-slate-700 group-hover:text-indigo-900'}`}>
             {label}
           </span>
           {description && (
@@ -219,26 +220,37 @@ const App: React.FC = () => {
              </span>
           )}
         </div>
+      </button>
+    );
+  };
 
-        {/* Active Indicator (Right Arrow or similar) */}
-        {isActive && (
-           <div className="absolute right-4 w-1.5 h-1.5 rounded-full bg-white animate-pulse"></div>
-        )}
+  const MobileNavItem = ({ viewName, label, icon: Icon }: { viewName: ViewState, label: string, icon: any }) => {
+    const isActive = view === viewName;
+    return (
+      <button
+        onClick={() => setView(viewName)}
+        className={`flex flex-col items-center justify-center w-full h-full space-y-1 transition-colors ${
+          isActive ? 'text-indigo-600' : 'text-slate-400 hover:text-slate-600'
+        }`}
+      >
+        <div className={`p-1.5 rounded-xl transition-all ${isActive ? 'bg-indigo-50' : ''}`}>
+          <Icon size={22} strokeWidth={isActive ? 2.5 : 2} />
+        </div>
+        <span className={`text-[10px] font-medium ${isActive ? 'font-bold' : ''}`}>{label}</span>
       </button>
     );
   };
 
   return (
     <div className="flex h-screen bg-[#F8FAFC] text-slate-800 font-sans overflow-hidden">
-      {/* Sidebar - Enhanced */}
-      <aside className="w-72 bg-slate-50/50 backdrop-blur-xl border-r border-slate-200/60 hidden md:flex flex-col p-6 z-20 relative">
+      {/* Sidebar - Enhanced Desktop */}
+      <aside className="w-72 bg-white border-r border-slate-200 hidden md:flex flex-col p-6 z-20 relative shadow-sm">
         {/* Logo Section */}
-        <div className="flex items-center gap-3 mb-10 px-2 mt-2">
+        <div className="flex items-center gap-3 mb-8 px-2">
           <div className="relative">
-            <div className="w-12 h-12 bg-indigo-600 rounded-2xl flex items-center justify-center text-white shadow-lg shadow-indigo-200 transform rotate-3">
-               <PieChart size={24} />
+            <div className="w-10 h-10 bg-indigo-600 rounded-xl flex items-center justify-center text-white shadow-md shadow-indigo-200">
+               <PieChart size={20} />
             </div>
-            <div className="absolute -bottom-1 -right-1 w-4 h-4 bg-emerald-400 rounded-full border-2 border-white"></div>
           </div>
           <div>
             <h1 className="text-xl font-extrabold text-slate-800 tracking-tight">
@@ -249,61 +261,68 @@ const App: React.FC = () => {
         </div>
 
         {/* Navigation */}
-        <nav className="space-y-2 flex-1">
-          <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">Menu</p>
+        <nav className="space-y-1.5 flex-1">
+          <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 mt-4">Menu</p>
           <NavItem viewName="DASHBOARD" label="ภาพรวม" icon={LayoutDashboard} description="Dashboard Overview" />
           <NavItem viewName="PROJECTS" label="โครงการ & บัญชี" icon={FolderKanban} description="Manage Projects" />
+          <NavItem viewName="ACCOUNTS" label="บัญชีรายรับ-จ่าย" icon={FileText} description="All Transactions" />
           <NavItem viewName="PROJECT_SUMMARY" label="สรุปภาพรวม" icon={BarChart3} description="Project Analytics" />
           <NavItem viewName="PARTNERS" label="สรุปยอดหุ้นส่วน" icon={Users} description="Partner Shares" />
           
-          <div className="my-6 border-t border-slate-200/60 mx-4"></div>
+          <div className="my-6 border-t border-slate-100 mx-4"></div>
           
-          <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-2">System</p>
+          <p className="px-4 text-xs font-bold text-slate-400 uppercase tracking-wider mb-3">System</p>
           <NavItem viewName="SETTINGS" label="จัดการข้อมูล" icon={SettingsIcon} description="Settings & Backup" />
         </nav>
 
         {/* Bottom Status Card */}
-        <div className="mt-auto">
+        <div className="mt-auto pt-4">
            <div className={`p-4 rounded-2xl border transition-all duration-300 ${
              isConnected 
-               ? 'bg-emerald-50/80 border-emerald-100' 
-               : 'bg-white border-slate-100 shadow-sm'
+               ? 'bg-emerald-50/50 border-emerald-100' 
+               : 'bg-slate-50 border-slate-100'
            }`}>
-              <div className="flex items-center gap-3 mb-2">
+              <div className="flex items-center gap-2.5 mb-1.5">
                 <div className={`w-2 h-2 rounded-full ${isConnected ? 'bg-emerald-500 animate-pulse' : 'bg-slate-300'}`}></div>
                 <span className={`text-xs font-bold ${isConnected ? 'text-emerald-700' : 'text-slate-500'}`}>
-                  {isConnected ? 'Google Sheets Sync' : 'Local Storage'}
+                  {isConnected ? 'Cloud Sync Active' : 'Local Storage'}
                 </span>
               </div>
-              <p className="text-[10px] text-slate-400 leading-relaxed">
+              <p className="text-[10px] text-slate-500 leading-relaxed">
                 {isConnected 
-                  ? 'ระบบกำลังซิงค์ข้อมูลกับ Cloud โดยอัตโนมัติ' 
-                  : 'ข้อมูลถูกบันทึกในเครื่องนี้เท่านั้น'}
+                  ? 'ข้อมูลซิงค์กับ Google Sheets อัตโนมัติ' 
+                  : 'ข้อมูลบันทึกในเครื่องนี้เท่านั้น'}
               </p>
            </div>
         </div>
       </aside>
 
       {/* Main Content */}
-      <main className="flex-1 flex flex-col min-w-0 bg-[#F8FAFC]">
+      <main className="flex-1 flex flex-col min-w-0 bg-[#F8FAFC] relative">
         {/* Mobile Header */}
-        <header className="md:hidden bg-white border-b border-slate-100 p-4 flex justify-between items-center z-20">
-           <div className="flex items-center gap-2">
-             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white">
+        <header className="md:hidden bg-white/80 backdrop-blur-md border-b border-slate-200 p-4 flex justify-between items-center sticky top-0 z-30">
+           <div className="flex items-center gap-2.5">
+             <div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white shadow-sm">
                 <PieChart size={16} />
              </div>
-             <h1 className="text-lg font-bold text-indigo-900">CoInvest</h1>
+             <div>
+               <h1 className="text-base font-bold text-slate-800 leading-none">CoInvest</h1>
+               <p className="text-[9px] font-bold text-indigo-500 uppercase tracking-wider mt-0.5">Finance Tracker</p>
+             </div>
            </div>
-           <div className="flex gap-2">
-             <button onClick={() => setView('DASHBOARD')} className={`p-2 rounded-lg ${view === 'DASHBOARD' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><LayoutDashboard/></button>
-             <button onClick={() => setView('PROJECTS')} className={`p-2 rounded-lg ${view === 'PROJECTS' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><FolderKanban/></button>
-             <button onClick={() => setView('PROJECT_SUMMARY')} className={`p-2 rounded-lg ${view === 'PROJECT_SUMMARY' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><BarChart3/></button>
-             <button onClick={() => setView('PARTNERS')} className={`p-2 rounded-lg ${view === 'PARTNERS' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><Users/></button>
-             <button onClick={() => setView('SETTINGS')} className={`p-2 rounded-lg ${view === 'SETTINGS' ? 'bg-indigo-100 text-indigo-600' : 'text-slate-500'}`}><SettingsIcon/></button>
+           <div className="flex items-center gap-3">
+             {isLoading && (
+               <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-full animate-pulse border border-indigo-100 font-medium flex items-center gap-1.5">
+                 <div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div> Syncing
+               </span>
+             )}
+             <button onClick={() => setView('SETTINGS')} className={`p-2 rounded-xl transition-all ${view === 'SETTINGS' ? 'bg-indigo-50 text-indigo-600' : 'text-slate-400 hover:bg-slate-50'}`}>
+               <SettingsIcon size={20} />
+             </button>
            </div>
         </header>
 
-        <div className="flex-1 overflow-auto p-4 md:p-8 custom-scrollbar relative z-10">
+        <div className="flex-1 overflow-auto p-4 md:p-8 custom-scrollbar relative z-10 pb-24 md:pb-8">
           <div className="max-w-[1600px] mx-auto">
             {view === 'SETTINGS' ? (
               <Settings 
@@ -312,9 +331,11 @@ const App: React.FC = () => {
                 onAddPartner={handleAddPartner}
                 onDeletePartner={handleDeletePartner}
               />
+            ) : view === 'ACCOUNTS' ? (
+              <Accounts data={data} />
             ) : (
               <>
-                <div className="mb-8 flex items-center gap-4">
+                <div className="mb-6 md:mb-8 flex items-center gap-4">
                   <div className="p-3 bg-white rounded-2xl shadow-sm border border-slate-100 hidden md:block">
                      {view === 'DASHBOARD' && <LayoutDashboard className="text-indigo-600"/>}
                      {view === 'PROJECTS' && <FolderKanban className="text-indigo-600"/>}
@@ -322,20 +343,20 @@ const App: React.FC = () => {
                      {view === 'PARTNERS' && <Users className="text-indigo-600"/>}
                   </div>
                   <div>
-                    <h2 className="text-2xl font-bold text-slate-800">
+                    <h2 className="text-xl md:text-2xl font-bold text-slate-800">
                       {view === 'DASHBOARD' ? 'ภาพรวมการลงทุน' : 
                       view === 'PROJECTS' ? 'จัดการโครงการ' : 
                       view === 'PROJECT_SUMMARY' ? 'สรุปภาพรวมโครงการ' :
                       'สรุปยอดหุ้นส่วน'}
                     </h2>
-                    <p className="text-sm text-slate-500 hidden md:block">
+                    <p className="text-sm text-slate-500 hidden md:block mt-1">
                       {view === 'DASHBOARD' ? 'Overview & Statistics' : 
                       view === 'PROJECTS' ? 'Manage Projects & Accounts' : 
                       view === 'PROJECT_SUMMARY' ? 'Project Analytics Report' :
                       'Partner Investment Summary'}
                     </p>
                   </div>
-                  {isLoading && <span className="ml-auto text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full animate-pulse border border-indigo-100 font-medium flex items-center gap-2"><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div> Updating...</span>}
+                  {isLoading && <span className="ml-auto text-xs bg-indigo-50 text-indigo-600 px-3 py-1.5 rounded-full animate-pulse border border-indigo-100 font-medium hidden md:flex items-center gap-2"><div className="w-1.5 h-1.5 bg-indigo-500 rounded-full"></div> Updating...</span>}
                 </div>
 
                 {view === 'DASHBOARD' && <Dashboard data={data} />}
@@ -354,6 +375,17 @@ const App: React.FC = () => {
             )}
           </div>
         </div>
+
+        {/* Mobile Bottom Navigation */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 pb-safe z-40 shadow-[0_-4px_20px_rgba(0,0,0,0.05)]">
+          <div className="flex items-center justify-around h-16 px-2">
+            <MobileNavItem viewName="DASHBOARD" label="ภาพรวม" icon={LayoutDashboard} />
+            <MobileNavItem viewName="PROJECTS" label="โครงการ" icon={FolderKanban} />
+            <MobileNavItem viewName="ACCOUNTS" label="บัญชี" icon={FileText} />
+            <MobileNavItem viewName="PROJECT_SUMMARY" label="สรุป" icon={BarChart3} />
+            <MobileNavItem viewName="PARTNERS" label="หุ้นส่วน" icon={Users} />
+          </div>
+        </nav>
       </main>
 
       <style>{`

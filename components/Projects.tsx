@@ -398,23 +398,23 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       )}
 
       {/* Sidebar List of Projects - Fixed Width for Balance */}
-      <div className={`w-full lg:w-64 shrink-0 flex flex-col gap-4 transition-all duration-300 ${isSidebarOpen ? '' : 'lg:flex hidden'}`}>
+      <div className={`w-full lg:w-72 shrink-0 flex flex-col gap-4 transition-all duration-300 ${isSidebarOpen ? '' : 'lg:flex hidden'}`}>
         <div className="flex justify-between items-center px-1 cursor-pointer lg:cursor-default" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
-          <h2 className="text-xl font-bold text-slate-700 flex items-center gap-2">
+          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 tracking-tight">
             โครงการ
             <span className="lg:hidden text-slate-400 bg-slate-100 rounded-full p-1">
               {isSidebarOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
             </span>
           </h2>
-          <Button size="sm" onClick={(e) => { e.stopPropagation(); setShowNewProjectForm(!showNewProjectForm); }}>
-            <Plus size={16} /> 
+          <Button size="sm" onClick={(e) => { e.stopPropagation(); setShowNewProjectForm(!showNewProjectForm); }} className="rounded-xl px-3 py-1.5">
+            <Plus size={16} /> สร้างใหม่
           </Button>
         </div>
 
         {/* Collapsible Area on Mobile */}
         <div className={`${isSidebarOpen ? 'block' : 'hidden lg:block'} space-y-4`}>
           {showNewProjectForm && (
-            <Card className="animate-in slide-in-from-top-4 fade-in duration-300">
+            <Card className="animate-in slide-in-from-top-4 fade-in duration-300 !p-5">
               <form onSubmit={handleCreateProject} className="flex flex-col gap-3">
                 <Input 
                   placeholder="ชื่อโครงการ" 
@@ -440,29 +440,29 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
               <div 
                 key={p.id}
                 onClick={() => handleSelectProject(p.id)}
-                className={`p-4 rounded-xl cursor-pointer transition-all border group relative ${
+                className={`p-4 rounded-2xl cursor-pointer transition-all border group relative ${
                   selectedProjectId === p.id 
-                    ? 'bg-white border-indigo-400 shadow-md ring-1 ring-indigo-100 overflow-hidden' 
-                    : 'bg-white border-transparent hover:bg-slate-50 hover:border-slate-200'
+                    ? 'bg-white border-indigo-200 shadow-md shadow-indigo-100/50 ring-1 ring-indigo-50 overflow-hidden' 
+                    : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 shadow-sm'
                 }`}
               >
                 {selectedProjectId === p.id && (
                     <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
                 )}
                 <div className="flex justify-between items-start mb-2 pl-2">
-                  <h3 className={`font-bold text-sm ${selectedProjectId === p.id ? 'text-indigo-700' : 'text-slate-700 group-hover:text-slate-900'}`}>{p.name}</h3>
+                  <h3 className={`font-bold text-base tracking-tight ${selectedProjectId === p.id ? 'text-indigo-900' : 'text-slate-700 group-hover:text-slate-900'}`}>{p.name}</h3>
                 </div>
                 <div className="flex justify-between items-center pl-2">
-                   <p className="text-[10px] text-slate-400 line-clamp-1">{p.description || "ไม่มีรายละเอียด"}</p>
-                   <div className={`w-2 h-2 rounded-full ${p.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
+                   <p className="text-xs text-slate-500 line-clamp-1">{p.description || "ไม่มีรายละเอียด"}</p>
+                   <div className={`w-2.5 h-2.5 rounded-full shadow-sm ${p.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
                 </div>
               </div>
             ))}
             
             {data.projects.length === 0 && (
-              <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-                <FolderOpen size={32} className="mx-auto mb-2 opacity-50"/>
-                <p>ยังไม่มีโครงการ</p>
+              <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+                <FolderOpen size={32} className="mx-auto mb-3 opacity-50"/>
+                <p className="font-medium">ยังไม่มีโครงการ</p>
               </div>
             )}
           </div>
@@ -543,11 +543,14 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                       </span>
                                       
                                       {partner ? (
-                                         <span className="flex items-center gap-1 text-xs text-slate-500 font-medium bg-slate-50 px-2 py-1 rounded-md border border-slate-100 max-w-[120px] truncate">
+                                         <span 
+                                           className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md max-w-[120px] truncate shadow-sm border border-slate-100"
+                                           style={{ backgroundColor: `${partner.color}15`, color: partner.color }}
+                                         >
                                            <User size={12}/> {partner.name}
                                          </span>
                                       ) : (
-                                         <span className="flex items-center gap-1 text-xs text-slate-500 font-medium bg-slate-50 px-2 py-1 rounded-md border border-slate-100">
+                                         <span className="flex items-center gap-1.5 text-xs text-slate-500 font-medium bg-slate-100 px-2.5 py-1 rounded-md shadow-sm border border-slate-200">
                                            <Wallet size={12}/> กองกลาง
                                          </span>
                                       )}

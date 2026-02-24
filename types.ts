@@ -40,4 +40,4 @@ export interface AppState {
   transactions: Transaction[];
 }
 
-export type ViewState = 'DASHBOARD' | 'PROJECTS' | 'PARTNERS' | 'PROJECT_SUMMARY' | 'SETTINGS';
+export type ViewState = 'DASHBOARD' | 'PROJECTS' | 'PARTNERS' | 'PROJECT_SUMMARY' | 'SETTINGS' | 'ACCOUNTS';

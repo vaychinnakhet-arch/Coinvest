@@ -16,21 +16,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
     let totalInvestment = 0;
     let totalIncome = 0;
     let totalExpense = 0;
+    let centralPool = 0;
 
     data.transactions.forEach(t => {
       if (t.type === TransactionType.INVESTMENT) {
         totalInvestment += t.amount;
+        centralPool += t.amount;
       } else if (t.type === TransactionType.EXPENSE) {
         totalExpense += t.amount;
         if (t.partnerId) {
           totalInvestment += t.amount;
+        } else {
+          centralPool -= t.amount;
         }
       } else if (t.type === TransactionType.INCOME) {
         totalIncome += t.amount;
+        centralPool += t.amount;
       }
     });
 
-    return { totalInvestment, totalIncome, totalExpense, netProfit: totalIncome - totalExpense };
+    return { totalInvestment, totalIncome, totalExpense, netProfit: totalIncome - totalExpense, centralPool };
   }, [data.transactions]);
 
   const partnerInvestments = useMemo(() => {
@@ -100,84 +105,104 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
     <div className="space-y-8 pb-10 animate-in fade-in duration-500">
       
       {/* 1. Hero Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {/* Investment Card */}
-        <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <Wallet size={90} className="text-indigo-600" />
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
+        
+        {/* Central Pool Card (Highlighted) */}
+        <div className="bg-gradient-to-br from-indigo-600 to-blue-700 text-white p-6 lg:p-8 rounded-3xl border border-transparent shadow-lg shadow-indigo-200/50 relative overflow-hidden group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity duration-500 group-hover:scale-110 transform">
+            <Wallet size={100} className="text-white" />
           </div>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3.5 bg-indigo-50 text-indigo-600 rounded-2xl">
-              <DollarSign size={26} />
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-white/20 backdrop-blur-sm text-white rounded-2xl shadow-inner">
+              <Wallet size={24} />
             </div>
-            <span className="text-slate-500 font-medium text-base">เงินลงทุนรวม</span>
+            <span className="font-semibold text-base text-indigo-100 tracking-wide">ยอดเงินกองกลาง</span>
           </div>
           <div>
-            <h3 className="text-3xl xl:text-4xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalInvestment)}</h3>
-            <p className="text-sm text-indigo-500 font-medium mt-2 flex items-center gap-1">
-              <ArrowUpRight size={16} /> เงินทุนหมุนเวียนในระบบ
+            <h3 className="text-4xl xl:text-5xl font-extrabold tracking-tight text-white mb-2">{formatCurrency(stats.centralPool)}</h3>
+            <p className="text-sm font-medium flex items-center gap-1.5 text-indigo-200">
+              เงินสดพร้อมใช้ในระบบ
+            </p>
+          </div>
+        </div>
+
+        {/* Investment Card */}
+        <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
+          <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500 group-hover:scale-110 transform">
+            <DollarSign size={100} className="text-slate-900" />
+          </div>
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-slate-50 text-slate-600 rounded-2xl border border-slate-100">
+              <DollarSign size={24} />
+            </div>
+            <span className="text-slate-500 font-semibold text-base tracking-wide">เงินลงทุนรวม</span>
+          </div>
+          <div>
+            <h3 className="text-3xl xl:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">{formatCurrency(stats.totalInvestment)}</h3>
+            <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
+              <ArrowUpRight size={16} className="text-indigo-500" /> เงินทุนหมุนเวียนในระบบ
             </p>
           </div>
         </div>
 
         {/* Income Card */}
-        <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <TrendingUp size={90} className="text-emerald-600" />
+        <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
+          <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500 group-hover:scale-110 transform">
+            <TrendingUp size={100} className="text-slate-900" />
           </div>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3.5 bg-emerald-50 text-emerald-600 rounded-2xl">
-              <TrendingUp size={26} />
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100/50">
+              <TrendingUp size={24} />
             </div>
-            <span className="text-slate-500 font-medium text-base">รายรับรวม</span>
+            <span className="text-slate-500 font-semibold text-base tracking-wide">รายรับรวม</span>
           </div>
           <div>
-            <h3 className="text-3xl xl:text-4xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalIncome)}</h3>
-             <p className="text-sm text-emerald-500 font-medium mt-2 flex items-center gap-1">
-              <ArrowUpRight size={16} /> รายได้จากทุกโครงการ
+            <h3 className="text-3xl xl:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">{formatCurrency(stats.totalIncome)}</h3>
+             <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
+              <ArrowUpRight size={16} className="text-emerald-500" /> รายได้จากทุกโครงการ
             </p>
           </div>
         </div>
 
         {/* Expense Card */}
-        <div className="bg-white p-6 lg:p-7 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all">
-          <div className="absolute top-0 right-0 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-            <TrendingDown size={90} className="text-rose-600" />
+        <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
+          <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500 group-hover:scale-110 transform">
+            <TrendingDown size={100} className="text-slate-900" />
           </div>
-          <div className="flex items-center gap-4 mb-4">
-            <div className="p-3.5 bg-rose-50 text-rose-600 rounded-2xl">
-              <TrendingDown size={26} />
+          <div className="flex items-center gap-4 mb-6">
+            <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100/50">
+              <TrendingDown size={24} />
             </div>
-            <span className="text-slate-500 font-medium text-base">รายจ่ายรวม</span>
+            <span className="text-slate-500 font-semibold text-base tracking-wide">รายจ่ายรวม</span>
           </div>
           <div>
-            <h3 className="text-3xl xl:text-4xl font-bold text-slate-800 tracking-tight">{formatCurrency(stats.totalExpense)}</h3>
-             <p className="text-sm text-rose-500 font-medium mt-2 flex items-center gap-1">
-              <ArrowDownRight size={16} /> ค่าใช้จ่ายทั้งหมด
+            <h3 className="text-3xl xl:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">{formatCurrency(stats.totalExpense)}</h3>
+             <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
+              <ArrowDownRight size={16} className="text-rose-500" /> ค่าใช้จ่ายทั้งหมด
             </p>
           </div>
         </div>
 
         {/* Net Profit Card (Highlighted) */}
-        <div className={`p-6 lg:p-7 rounded-3xl border shadow-sm relative overflow-hidden group hover:shadow-md transition-all ${
+        <div className={`p-6 lg:p-8 rounded-3xl border shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300 ${
           stats.netProfit >= 0 
-            ? 'bg-gradient-to-br from-indigo-600 to-purple-600 text-white border-transparent' 
-            : 'bg-white border-rose-100'
+            ? 'bg-slate-900 text-white border-transparent' 
+            : 'bg-white border-rose-200'
         }`}>
-          <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity">
-            <Activity size={90} className={stats.netProfit >= 0 ? "text-white" : "text-rose-500"} />
+          <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity duration-500 group-hover:scale-110 transform">
+            <Activity size={100} className={stats.netProfit >= 0 ? "text-white" : "text-rose-500"} />
           </div>
-          <div className="flex items-center gap-4 mb-4">
-            <div className={`p-3.5 rounded-2xl ${stats.netProfit >= 0 ? 'bg-white/20 text-white' : 'bg-rose-50 text-rose-600'}`}>
-              <Activity size={26} />
+          <div className="flex items-center gap-4 mb-6">
+            <div className={`p-3 rounded-2xl ${stats.netProfit >= 0 ? 'bg-white/10 text-white' : 'bg-rose-50 text-rose-600'}`}>
+              <Activity size={24} />
             </div>
-            <span className={`font-medium text-base ${stats.netProfit >= 0 ? 'text-indigo-100' : 'text-slate-500'}`}>กำไรสุทธิ</span>
+            <span className={`font-semibold text-base tracking-wide ${stats.netProfit >= 0 ? 'text-slate-300' : 'text-slate-500'}`}>กำไรสุทธิ</span>
           </div>
           <div>
-            <h3 className={`text-3xl xl:text-4xl font-bold tracking-tight ${stats.netProfit >= 0 ? 'text-white' : 'text-rose-600'}`}>
+            <h3 className={`text-3xl xl:text-4xl font-extrabold tracking-tight mb-2 ${stats.netProfit >= 0 ? 'text-white' : 'text-rose-600'}`}>
               {formatCurrency(stats.netProfit)}
             </h3>
-            <p className={`text-sm font-medium mt-2 flex items-center gap-1 ${stats.netProfit >= 0 ? 'text-indigo-100' : 'text-slate-400'}`}>
+            <p className={`text-sm font-medium flex items-center gap-1.5 ${stats.netProfit >= 0 ? 'text-slate-400' : 'text-slate-400'}`}>
                สถานะการเงินปัจจุบัน
             </p>
           </div>

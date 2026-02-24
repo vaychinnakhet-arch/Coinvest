@@ -170,14 +170,15 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
   return (
     <div className="space-y-6">
       {/* Controls */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
+      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm flex flex-col md:flex-row justify-between items-end md:items-center gap-4">
         <div className="flex flex-col md:flex-row gap-4 w-full md:w-auto">
-           <div className="space-y-1 w-full md:w-64">
-              <label className="text-xs font-semibold text-slate-500 ml-1">เลือกโครงการ</label>
+           <div className="space-y-1.5 w-full md:w-64">
+              <label className="text-xs font-semibold text-slate-600 ml-1 uppercase tracking-wider">เลือกโครงการ</label>
               <select 
                 value={selectedProjectId} 
                 onChange={e => setSelectedProjectId(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-100 outline-none font-medium"
+                className="w-full p-3 rounded-2xl bg-slate-50/50 border border-slate-200 text-sm focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all appearance-none"
+                style={{ backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
               >
                 {data.projects.map(p => (
                   <option key={p.id} value={p.id}>{p.name}</option>
@@ -185,29 +186,29 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
               </select>
            </div>
            
-           <div className="space-y-1 w-full md:w-48">
-              <label className="text-xs font-semibold text-slate-500 ml-1">เดือน/ปี (Optional)</label>
+           <div className="space-y-1.5 w-full md:w-48">
+              <label className="text-xs font-semibold text-slate-600 ml-1 uppercase tracking-wider">เดือน/ปี (Optional)</label>
               <div className="relative">
                  <input 
                    type="month"
                    value={filterMonth}
                    onChange={e => setFilterMonth(e.target.value)}
-                   className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-100 outline-none pl-9"
+                   className="w-full p-3 rounded-2xl bg-slate-50/50 border border-slate-200 text-sm focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none pl-10 transition-all"
                  />
-                 <Calendar className="absolute left-3 top-2.5 text-slate-400" size={16}/>
+                 <Calendar className="absolute left-3.5 top-3.5 text-slate-400" size={16}/>
               </div>
            </div>
 
            {(filterMonth) && (
               <div className="flex items-end pb-1">
-                 <button onClick={() => setFilterMonth('')} className="text-rose-500 hover:bg-rose-50 p-2 rounded-lg transition-colors">
+                 <button onClick={() => setFilterMonth('')} className="text-rose-500 hover:bg-rose-50 p-2.5 rounded-xl transition-colors">
                     <X size={18}/>
                  </button>
               </div>
            )}
         </div>
 
-        <Button onClick={handleDownload} disabled={isExporting} variant="secondary" className="w-full md:w-auto">
+        <Button onClick={handleDownload} disabled={isExporting} variant="secondary" className="w-full md:w-auto shadow-sm">
           {isExporting ? <Loader2 className="animate-spin mr-2" size={18}/> : <Download className="mr-2" size={18}/>}
           บันทึกรูปภาพ
         </Button>

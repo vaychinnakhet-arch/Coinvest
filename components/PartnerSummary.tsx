@@ -157,28 +157,29 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
   return (
     <div className="space-y-6">
       {/* Filters & Action Bar */}
-      <div className="bg-white p-5 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+      <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm space-y-4">
         <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
            <div>
-              <h2 className="text-lg font-bold text-slate-700 flex items-center gap-2">
+              <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 tracking-tight">
                 <Filter size={20} className="text-indigo-500"/> ตัวกรองรายงาน
               </h2>
-              <p className="text-sm text-slate-500">เลือกเงื่อนไขเพื่อสร้าง Statement ที่ต้องการ</p>
+              <p className="text-sm text-slate-500 mt-1">เลือกเงื่อนไขเพื่อสร้าง Statement ที่ต้องการ</p>
            </div>
-           <Button onClick={handleDownload} disabled={isExporting} variant="primary" className="w-full md:w-auto">
+           <Button onClick={handleDownload} disabled={isExporting} variant="primary" className="w-full md:w-auto shadow-indigo-200/50">
             {isExporting ? <Loader2 className="animate-spin mr-2" size={18}/> : <Download className="mr-2" size={18}/>}
             บันทึกเป็นรูปภาพ
           </Button>
         </div>
         
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 pt-2 border-t border-slate-50">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 pt-4 border-t border-slate-100">
            {/* Partner Filter */}
-           <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500 ml-1">หุ้นส่วน</label>
+           <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600 ml-1 uppercase tracking-wider">หุ้นส่วน</label>
               <select 
                 value={filterPartner} 
                 onChange={e => setFilterPartner(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-100 outline-none"
+                className="w-full p-3 rounded-2xl bg-slate-50/50 border border-slate-200 text-sm focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all appearance-none"
+                style={{ backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
               >
                 <option value="all">แสดงทั้งหมด</option>
                 {data.partners.map(p => (
@@ -188,12 +189,13 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
            </div>
 
            {/* Project Filter */}
-           <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500 ml-1">โครงการ</label>
+           <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600 ml-1 uppercase tracking-wider">โครงการ</label>
               <select 
                 value={filterProject} 
                 onChange={e => setFilterProject(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-100 outline-none"
+                className="w-full p-3 rounded-2xl bg-slate-50/50 border border-slate-200 text-sm focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all appearance-none"
+                style={{ backgroundImage: 'url("data:image/svg+xml,%3csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3e%3cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3e%3c/svg%3e")', backgroundPosition: 'right 0.5rem center', backgroundRepeat: 'no-repeat', backgroundSize: '1.5em 1.5em', paddingRight: '2.5rem' }}
               >
                 <option value="all">ทุกโครงการ</option>
                 {data.projects.map(p => (
@@ -203,13 +205,13 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
            </div>
 
            {/* Month Filter */}
-           <div className="space-y-1">
-              <label className="text-xs font-semibold text-slate-500 ml-1">เดือน/ปี</label>
+           <div className="space-y-1.5">
+              <label className="text-xs font-semibold text-slate-600 ml-1 uppercase tracking-wider">เดือน/ปี</label>
               <input 
                 type="month"
                 value={filterMonth}
                 onChange={e => setFilterMonth(e.target.value)}
-                className="w-full p-2.5 rounded-xl bg-slate-50 border border-slate-200 text-sm focus:ring-2 focus:ring-indigo-100 outline-none"
+                className="w-full p-3 rounded-2xl bg-slate-50/50 border border-slate-200 text-sm focus:bg-white focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-400 outline-none transition-all"
               />
            </div>
 
@@ -217,7 +219,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
            <div className="flex items-end">
               <button 
                 onClick={() => { setFilterPartner('all'); setFilterProject('all'); setFilterMonth(''); }}
-                className="w-full p-2.5 rounded-xl border border-dashed border-slate-300 text-slate-500 text-sm hover:bg-slate-50 hover:text-rose-500 transition-colors flex items-center justify-center gap-2"
+                className="w-full p-3 rounded-2xl border border-dashed border-slate-300 text-slate-500 text-sm hover:bg-rose-50 hover:border-rose-200 hover:text-rose-600 transition-all flex items-center justify-center gap-2 font-medium"
               >
                 <X size={16}/> รีเซ็ต
               </button>
