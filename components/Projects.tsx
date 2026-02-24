@@ -523,21 +523,21 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                           const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
                           
                           return (
-                          <div key={t.id} className={`flex flex-col sm:flex-row sm:items-start justify-between p-5 rounded-2xl border transition-all duration-200 group gap-4 ${editingId === t.id ? 'bg-amber-50 border-amber-300 shadow-md transform scale-[1.01]' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
+                          <div key={t.id} className={`flex flex-col sm:flex-row sm:items-start justify-between p-4 rounded-xl border transition-all duration-200 group gap-3 ${editingId === t.id ? 'bg-amber-50 border-amber-300 shadow-md transform scale-[1.01]' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
                              {/* Left: Icon & Info */}
-                             <div className="flex items-start gap-4 overflow-hidden flex-1 min-w-0">
-                                <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm mt-1 ${getTransactionColor(t.type)}`}>
-                                   {t.type === TransactionType.INCOME ? <Plus size={22}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={22}/> : <ArrowRight size={22} className="-rotate-45"/>}
+                             <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0">
+                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm mt-0.5 ${getTransactionColor(t.type)}`}>
+                                   {t.type === TransactionType.INCOME ? <Plus size={18}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={18}/> : <ArrowRight size={18} className="-rotate-45"/>}
                                 </div>
                                 <div className="min-w-0 flex-1">
-                                   <div className="mb-1.5 pr-2">
+                                   <div className="mb-1 pr-2">
                                      {/* Note Text: Break Words and Line Clamp */}
-                                     <p className="font-bold text-slate-800 text-base leading-snug break-words line-clamp-3">
+                                     <p className="font-bold text-slate-800 text-sm leading-snug break-words line-clamp-2">
                                        {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
                                      </p>
                                    </div>
                                    
-                                   <div className="flex flex-wrap items-center gap-3 mt-2">
+                                   <div className="flex flex-wrap items-center gap-2 mt-1.5">
                                       <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 whitespace-nowrap">
                                         {new Date(t.date).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' })}
                                       </span>
@@ -596,7 +596,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                              
                              {/* Right: Amount & Actions */}
                              <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 pl-0 sm:pl-4 w-full sm:w-auto shrink-0 border-t sm:border-t-0 border-slate-50 pt-3 sm:pt-0 mt-2 sm:mt-0">
-                                <span className={`font-bold text-xl tracking-tight ${
+                                <span className={`font-bold text-lg tracking-tight ${
                                   t.type === TransactionType.INCOME ? 'text-emerald-600' : 
                                   t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
                                 }`}>
@@ -626,292 +626,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                    </div>
                 </Card>
 
-                {/* Add/Edit Transaction Form - Fixed Width on Large Screens */}
-                <Card 
-                  id="transaction-form"
-                  className={`w-full 2xl:w-96 shrink-0 h-fit transition-all duration-300 shadow-sm ${editingId ? 'ring-2 ring-amber-400 border-amber-200 shadow-xl' : 'border-slate-200'}`} 
-                  title={editingId ? "แก้ไขรายการ" : "บันทึกรายการ"}
-                  action={editingId && (
-                    <button onClick={cancelEditing} className="text-slate-400 hover:text-slate-600"><X size={20}/></button>
-                  )}
-                >
-                   <form onSubmit={handleFormSubmit} className="flex flex-col gap-5">
-                      {/* Transaction Type Tabs */}
-                      <div className="flex gap-2 p-1.5 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar">
-                        {[
-                          { val: TransactionType.EXPENSE, label: 'รายจ่าย' },
-                          { val: TransactionType.INCOME, label: 'รายรับ' },
-                          { val: TransactionType.INVESTMENT, label: 'ลงทุน' },
-                        ].map(type => (
-                          <button
-                            key={type.val}
-                            type="button"
-                            onClick={() => {
-                               setTransType(type.val as TransactionType);
-                               if (type.val !== TransactionType.EXPENSE) setIsSplitMode(false);
-                            }}
-                            className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                              transType === type.val ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
-                            }`}
-                          >
-                            {type.label}
-                          </button>
-                        ))}
-                      </div>
-
-                      {/* Amount and Date */}
-                      <Input 
-                        type="number" 
-                        placeholder="0.00" 
-                        label="จำนวนเงินรวม (THB)"
-                        value={transAmount}
-                        onChange={e => setTransAmount(e.target.value)}
-                        required
-                        className="font-mono text-2xl font-bold text-slate-800 text-right tracking-tight bg-slate-50 border-slate-200 focus:bg-white transition-all"
-                      />
-
-                      <Input 
-                        type="date" 
-                        label="วันที่"
-                        value={transDate}
-                        onChange={e => setTransDate(e.target.value)}
-                        required
-                      />
-
-                      <Input 
-                        placeholder="เช่น ค่าวัสดุ, ค่าเช่า..." 
-                        label="บันทึกช่วยจำ"
-                        value={transNote}
-                        onChange={e => setTransNote(e.target.value)}
-                        className="bg-slate-50 border-slate-200 focus:bg-white transition-all"
-                      />
-
-                      {/* Image Upload */}
-                      <div>
-                        <label className="text-sm font-medium text-slate-600 mb-2 block">รูปสลิป/ใบเสร็จ (สูงสุด 4 รูป)</label>
-                        <div className="flex flex-col gap-3">
-                          {/* Image 1 */}
-                          <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                             <div className="relative flex-1">
-                                <input 
-                                  type="file" 
-                                  accept="image/*" 
-                                  onChange={(e) => handleImageChange(e, 1)}
-                                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                                />
-                             </div>
-                             {isProcessingImage && (
-                               <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                                 <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
-                               </div>
-                             )}
-                             {transImage && !isProcessingImage && (
-                                <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage)}>
-                                   <img src={transImage} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview"/>
-                                   <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage('');}}>
-                                      <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                                   </div>
-                                </div>
-                             )}
-                          </div>
-
-                          {/* Image 2 */}
-                          <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                             <div className="relative flex-1">
-                                <input 
-                                  type="file" 
-                                  accept="image/*" 
-                                  onChange={(e) => handleImageChange(e, 2)}
-                                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                                />
-                             </div>
-                             {isProcessingImage2 && (
-                               <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                                 <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
-                               </div>
-                             )}
-                             {transImage2 && !isProcessingImage2 && (
-                                <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage2)}>
-                                   <img src={transImage2} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 2"/>
-                                   <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage2('');}}>
-                                      <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                                   </div>
-                                </div>
-                             )}
-                          </div>
-
-                          {/* Image 3 */}
-                          <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                             <div className="relative flex-1">
-                                <input 
-                                  type="file" 
-                                  accept="image/*" 
-                                  onChange={(e) => handleImageChange(e, 3)}
-                                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                                />
-                             </div>
-                             {isProcessingImage3 && (
-                               <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                                 <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
-                               </div>
-                             )}
-                             {transImage3 && !isProcessingImage3 && (
-                                <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage3)}>
-                                   <img src={transImage3} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 3"/>
-                                   <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage3('');}}>
-                                      <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                                   </div>
-                                </div>
-                             )}
-                          </div>
-
-                          {/* Image 4 */}
-                          <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                             <div className="relative flex-1">
-                                <input 
-                                  type="file" 
-                                  accept="image/*" 
-                                  onChange={(e) => handleImageChange(e, 4)}
-                                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                                />
-                             </div>
-                             {isProcessingImage4 && (
-                               <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                                 <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
-                               </div>
-                             )}
-                             {transImage4 && !isProcessingImage4 && (
-                                <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage4)}>
-                                   <img src={transImage4} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 4"/>
-                                   <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage4('');}}>
-                                      <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                                   </div>
-                                </div>
-                             )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {/* Payment Source Logic */}
-                      {transType === TransactionType.EXPENSE ? (
-                         <div className="flex flex-col gap-3 w-full pt-4 border-t border-slate-100 mt-2">
-                           {/* Label & Toggle */}
-                           <div className="flex justify-between items-center">
-                              <label className="text-sm font-medium text-slate-600">
-                                {editingId ? "แหล่งเงินที่จ่าย (แก้ไข)" : "แหล่งเงินที่จ่าย"}
-                              </label>
-                              <button 
-                                type="button"
-                                onClick={handleToggleSplitMode}
-                                className={`text-xs flex items-center gap-1 px-3 py-1.5 rounded-full transition-colors border shadow-sm ${isSplitMode ? 'bg-indigo-600 border-indigo-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                              >
-                                 <Split size={14}/> {isSplitMode ? 'จ่ายหลายทาง' : 'จ่ายทางเดียว'}
-                              </button>
-                           </div>
-
-                            {/* Split Mode */}
-                           {isSplitMode ? (
-                               <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-200 max-h-72 overflow-y-auto custom-scrollbar shadow-inner">
-                                  <div className="flex justify-between text-xs text-slate-500 mb-1 font-medium bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                                    <span>ยอดที่ต้องจ่าย</span>
-                                    <span className={calculateSplitTotal() === parseFloat(transAmount || '0') ? 'text-emerald-600 font-bold' : 'text-rose-500 font-bold'}>
-                                      {calculateSplitTotal().toLocaleString()} / {parseFloat(transAmount || '0').toLocaleString()}
-                                    </span>
-                                  </div>
-                                  
-                                  <div className="flex items-center gap-2">
-                                     <div className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-600 shrink-0 shadow-sm"><Wallet size={16}/></div>
-                                     <span className="text-sm font-medium text-slate-600 flex-1">กองกลาง</span>
-                                     <input 
-                                       type="number" 
-                                       placeholder="0"
-                                       className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
-                                       value={splitAmounts['POOL'] || ''}
-                                       onChange={e => setSplitAmounts(prev => ({...prev, 'POOL': e.target.value}))}
-                                     />
-                                  </div>
-
-                                  {data.partners.map(p => (
-                                    <div key={p.id} className="flex items-center gap-2">
-                                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs text-white shrink-0 shadow-sm ring-2 ring-white" style={{background: p.color}}>
-                                        {p.avatar}
-                                      </div>
-                                      <span className="text-sm font-medium text-slate-600 flex-1 truncate">{p.name}</span>
-                                      <input 
-                                        type="number" 
-                                        placeholder="0"
-                                        className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
-                                        value={splitAmounts[p.id] || ''}
-                                        onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
-                                      />
-                                    </div>
-                                  ))}
-                                  
-                                  {otherProjects.length > 0 && (
-                                     <>
-                                      <div className="text-[11px] text-slate-400 font-bold mt-3 pt-2 border-t border-slate-200">โครงการอื่น</div>
-                                      {otherProjects.map(p => (
-                                        <div key={p.id} className="flex items-center gap-2">
-                                          <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-sm">
-                                            <Building2 size={16}/>
-                                          </div>
-                                          <span className="text-sm font-medium text-slate-600 flex-1 truncate">{p.name}</span>
-                                          <input 
-                                            type="number" 
-                                            placeholder="0"
-                                            className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
-                                            value={splitAmounts[p.id] || ''}
-                                            onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
-                                          />
-                                        </div>
-                                      ))}
-                                     </>
-                                  )}
-                               </div>
-                           ) : (
-                               // ... Single Select UI ...
-                               <div className="space-y-2">
-                                 <select
-                                     className={`w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all outline-none text-slate-800 ${transPartner === '' ? 'text-indigo-600 font-medium' : ''}`}
-                                     value={transPartner}
-                                     onChange={e => setTransPartner(e.target.value)}
-                                   >
-                                     {sourceOptions.map((opt, idx) => (
-                                       <option key={idx} value={opt.value} disabled={opt.disabled}>
-                                         {opt.label}
-                                       </option>
-                                     ))}
-                                 </select>
-                               </div>
-                           )}
-                         </div>
-                      ) : (
-                         /* Select for other types */
-                         <Select 
-                           label={transType === TransactionType.INVESTMENT ? "หุ้นส่วนที่ลงทุน" : transType === TransactionType.INCOME ? "เก็บเงินไว้ที่" : "หุ้นส่วน"}
-                           options={[
-                             { value: '', label: transType === TransactionType.INVESTMENT ? '-- เลือกหุ้นส่วน --' : 'กองกลาง (Central Pool)' },
-                             ...data.partners.map(p => ({ value: p.id, label: p.name }))
-                           ]}
-                           value={transPartner}
-                           onChange={e => setTransPartner(e.target.value)}
-                           required={transType === TransactionType.INVESTMENT} 
-                           className={transPartner === '' ? 'text-slate-500 italic' : ''}
-                         />
-                      )}
-                      
-                      <div className="flex gap-3 mt-4 pt-4 border-t border-slate-100">
-                         {editingId && (
-                            <Button type="button" variant="secondary" className="flex-1" onClick={cancelEditing}>
-                               ยกเลิก
-                            </Button>
-                         )}
-                         <Button type="submit" className={`flex-1 py-3 text-base font-medium shadow-md shadow-indigo-200 ${isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4 ? 'opacity-80 cursor-wait' : ''}`} disabled={!transAmount || isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4}>
-                           {isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4 ? 'กำลังเตรียมรูป...' : editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
-                         </Button>
-                      </div>
-                   </form>
-                </Card>
              </div>
           </div>
         ) : (
