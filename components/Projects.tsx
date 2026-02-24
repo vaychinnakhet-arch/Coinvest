@@ -30,8 +30,12 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
   const [transImage, setTransImage] = useState<string>(''); // Base64 string
   const [transImage2, setTransImage2] = useState<string>(''); // Base64 string
+  const [transImage3, setTransImage3] = useState<string>(''); // Base64 string
+  const [transImage4, setTransImage4] = useState<string>(''); // Base64 string
   const [isProcessingImage, setIsProcessingImage] = useState(false);
   const [isProcessingImage2, setIsProcessingImage2] = useState(false);
+  const [isProcessingImage3, setIsProcessingImage3] = useState(false);
+  const [isProcessingImage4, setIsProcessingImage4] = useState(false);
 
   // Split Payment State
   const [isSplitMode, setIsSplitMode] = useState(false);
@@ -76,12 +80,26 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setShowNewProjectForm(false);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, isSecondImage: boolean = false) => {
+  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, imageIndex: number = 1) => {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    const setProcessing = isSecondImage ? setIsProcessingImage2 : setIsProcessingImage;
-    const setImage = isSecondImage ? setTransImage2 : setTransImage;
+    let setProcessing: React.Dispatch<React.SetStateAction<boolean>>;
+    let setImage: React.Dispatch<React.SetStateAction<string>>;
+
+    if (imageIndex === 1) {
+      setProcessing = setIsProcessingImage;
+      setImage = setTransImage;
+    } else if (imageIndex === 2) {
+      setProcessing = setIsProcessingImage2;
+      setImage = setTransImage2;
+    } else if (imageIndex === 3) {
+      setProcessing = setIsProcessingImage3;
+      setImage = setTransImage3;
+    } else {
+      setProcessing = setIsProcessingImage4;
+      setImage = setTransImage4;
+    }
 
     setProcessing(true);
 
@@ -163,7 +181,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
   const handleFormSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!selectedProjectId || !transAmount || isProcessingImage || isProcessingImage2) return;
+    if (!selectedProjectId || !transAmount || isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4) return;
 
     const totalAmount = parseFloat(transAmount);
 
@@ -186,7 +204,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                note: sourceProject ? `${transNote} (ปรับปรุง: รับเงินจาก ${sourceProject.name})` : transNote,
                partnerId: sourceProject ? undefined : (transPartner || undefined),
                receiptImage: transImage,
-               receiptImage2: transImage2
+               receiptImage2: transImage2,
+               receiptImage3: transImage3,
+               receiptImage4: transImage4
             });
 
             if (sourceProject) {
@@ -237,7 +257,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              note: `${transNote} (ดึงเงินจากโครงการ: ${sourceProj?.name})`,
              partnerId: undefined,
              receiptImage: transImage,
-             receiptImage2: transImage2
+             receiptImage2: transImage2,
+             receiptImage3: transImage3,
+             receiptImage4: transImage4
           });
           onAddTransaction({
              projectId: sourceKey,
@@ -258,7 +280,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              note: isSplitMode ? `${transNote} (จ่ายโดย ${partnerName})` : transNote,
              partnerId: sourceKey,
              receiptImage: transImage,
-             receiptImage2: transImage2
+             receiptImage2: transImage2,
+             receiptImage3: transImage3,
+             receiptImage4: transImage4
           });
 
        } else {
@@ -270,7 +294,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
              note: isSplitMode ? `${transNote} (กองกลาง)` : transNote,
              partnerId: undefined,
              receiptImage: transImage,
-             receiptImage2: transImage2
+             receiptImage2: transImage2,
+             receiptImage3: transImage3,
+             receiptImage4: transImage4
           });
        }
     });
@@ -284,8 +310,12 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransNote('');
     setTransImage('');
     setTransImage2('');
+    setTransImage3('');
+    setTransImage4('');
     setIsProcessingImage(false);
     setIsProcessingImage2(false);
+    setIsProcessingImage3(false);
+    setIsProcessingImage4(false);
     setSplitAmounts({});
     if (editingId) {
       setTransType(TransactionType.EXPENSE);
@@ -304,6 +334,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setTransPartner(t.partnerId || '');
     setTransImage(t.receiptImage || '');
     setTransImage2(t.receiptImage2 || '');
+    setTransImage3(t.receiptImage3 || '');
+    setTransImage4(t.receiptImage4 || '');
     setIsSplitMode(false); 
     // Scroll to form on mobile
     if (window.innerWidth < 1024) {
@@ -532,6 +564,22 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                            <ImageIcon size={12} /> ดูสลิป 2
                                         </button>
                                       )}
+                                      {t.receiptImage3 && (
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage3 || null); }}
+                                          className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
+                                        >
+                                           <ImageIcon size={12} /> ดูสลิป 3
+                                        </button>
+                                      )}
+                                      {t.receiptImage4 && (
+                                        <button 
+                                          onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage4 || null); }}
+                                          className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
+                                        >
+                                           <ImageIcon size={12} /> ดูสลิป 4
+                                        </button>
+                                      )}
                                    </div>
                                 </div>
                              </div>
@@ -630,7 +678,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
                       {/* Image Upload */}
                       <div>
-                        <label className="text-sm font-medium text-slate-600 mb-2 block">รูปสลิป/ใบเสร็จ (สูงสุด 2 รูป)</label>
+                        <label className="text-sm font-medium text-slate-600 mb-2 block">รูปสลิป/ใบเสร็จ (สูงสุด 4 รูป)</label>
                         <div className="flex flex-col gap-3">
                           {/* Image 1 */}
                           <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
@@ -638,7 +686,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                 <input 
                                   type="file" 
                                   accept="image/*" 
-                                  onChange={(e) => handleImageChange(e, false)}
+                                  onChange={(e) => handleImageChange(e, 1)}
                                   className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
                                 />
                              </div>
@@ -663,7 +711,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                 <input 
                                   type="file" 
                                   accept="image/*" 
-                                  onChange={(e) => handleImageChange(e, true)}
+                                  onChange={(e) => handleImageChange(e, 2)}
                                   className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
                                 />
                              </div>
@@ -676,6 +724,56 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                 <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage2)}>
                                    <img src={transImage2} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 2"/>
                                    <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage2('');}}>
+                                      <X size={12} className="text-slate-500 hover:text-rose-500"/>
+                                   </div>
+                                </div>
+                             )}
+                          </div>
+
+                          {/* Image 3 */}
+                          <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                             <div className="relative flex-1">
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  onChange={(e) => handleImageChange(e, 3)}
+                                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
+                                />
+                             </div>
+                             {isProcessingImage3 && (
+                               <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
+                                 <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
+                               </div>
+                             )}
+                             {transImage3 && !isProcessingImage3 && (
+                                <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage3)}>
+                                   <img src={transImage3} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 3"/>
+                                   <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage3('');}}>
+                                      <X size={12} className="text-slate-500 hover:text-rose-500"/>
+                                   </div>
+                                </div>
+                             )}
+                          </div>
+
+                          {/* Image 4 */}
+                          <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
+                             <div className="relative flex-1">
+                                <input 
+                                  type="file" 
+                                  accept="image/*" 
+                                  onChange={(e) => handleImageChange(e, 4)}
+                                  className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
+                                />
+                             </div>
+                             {isProcessingImage4 && (
+                               <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
+                                 <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
+                               </div>
+                             )}
+                             {transImage4 && !isProcessingImage4 && (
+                                <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage4)}>
+                                   <img src={transImage4} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 4"/>
+                                   <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage4('');}}>
                                       <X size={12} className="text-slate-500 hover:text-rose-500"/>
                                    </div>
                                 </div>
@@ -798,8 +896,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                ยกเลิก
                             </Button>
                          )}
-                         <Button type="submit" className={`flex-1 py-3 text-base font-medium shadow-md shadow-indigo-200 ${isProcessingImage || isProcessingImage2 ? 'opacity-80 cursor-wait' : ''}`} disabled={!transAmount || isProcessingImage || isProcessingImage2}>
-                           {isProcessingImage || isProcessingImage2 ? 'กำลังเตรียมรูป...' : editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
+                         <Button type="submit" className={`flex-1 py-3 text-base font-medium shadow-md shadow-indigo-200 ${isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4 ? 'opacity-80 cursor-wait' : ''}`} disabled={!transAmount || isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4}>
+                           {isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4 ? 'กำลังเตรียมรูป...' : editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
                          </Button>
                       </div>
                    </form>

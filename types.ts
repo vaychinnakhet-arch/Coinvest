@@ -30,6 +30,8 @@ export interface Transaction {
   note: string;
   receiptImage?: string; // Base64 string of the slip/receipt
   receiptImage2?: string; // Base64 string of the second slip/receipt
+  receiptImage3?: string; // Base64 string of the third slip/receipt
+  receiptImage4?: string; // Base64 string of the fourth slip/receipt
 }
 
 export interface AppState {
