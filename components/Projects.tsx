@@ -378,7 +378,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
 
   return (
     <>
-    <div className="flex flex-col lg:flex-row gap-6 lg:h-[calc(100vh-140px)] h-auto min-h-screen relative">
+    <div className="flex flex-col gap-6 h-auto min-h-screen relative pb-10">
       {/* Image Modal */}
       {viewImage && (
         <div 
@@ -397,14 +397,11 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
         </div>
       )}
 
-      {/* Sidebar List of Projects - Fixed Width for Balance */}
-      <div className={`w-full lg:w-72 shrink-0 flex flex-col gap-4 transition-all duration-300 ${isSidebarOpen ? '' : 'lg:flex hidden'}`}>
-        <div className="flex justify-between items-center px-1 cursor-pointer lg:cursor-default" onClick={() => setIsSidebarOpen(!isSidebarOpen)}>
+      {/* Top Bar List of Projects */}
+      <div className="w-full flex flex-col gap-4 transition-all duration-300">
+        <div className="flex justify-between items-center px-1">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 tracking-tight">
             โครงการ
-            <span className="lg:hidden text-slate-400 bg-slate-100 rounded-full p-1">
-              {isSidebarOpen ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
-            </span>
           </h2>
           <Button size="sm" onClick={(e) => { e.stopPropagation(); setShowNewProjectForm(!showNewProjectForm); }} className="rounded-xl px-3 py-1.5">
             <Plus size={16} /> สร้างใหม่
@@ -412,22 +409,24 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
         </div>
 
         {/* Collapsible Area on Mobile */}
-        <div className={`${isSidebarOpen ? 'block' : 'hidden lg:block'} space-y-4`}>
+        <div className="space-y-4">
           {showNewProjectForm && (
             <Card className="animate-in slide-in-from-top-4 fade-in duration-300 !p-5">
-              <form onSubmit={handleCreateProject} className="flex flex-col gap-3">
+              <form onSubmit={handleCreateProject} className="flex flex-col sm:flex-row gap-3">
                 <Input 
                   placeholder="ชื่อโครงการ" 
                   value={newProjectName} 
                   onChange={e => setNewProjectName(e.target.value)} 
                   autoFocus
+                  className="flex-1"
                 />
                 <Input 
                   placeholder="รายละเอียดสั้นๆ" 
                   value={newProjectDesc} 
                   onChange={e => setNewProjectDesc(e.target.value)} 
+                  className="flex-1"
                 />
-                <div className="flex gap-2 justify-end mt-2">
+                <div className="flex gap-2 justify-end mt-2 sm:mt-0 items-end">
                   <Button type="button" variant="ghost" size="sm" onClick={() => setShowNewProjectForm(false)}>ยกเลิก</Button>
                   <Button type="submit" size="sm">บันทึก</Button>
                 </div>
@@ -435,32 +434,32 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
             </Card>
           )}
 
-          <div className="flex-1 overflow-y-auto space-y-3 pr-2 custom-scrollbar max-h-[300px] lg:max-h-none">
+          <div className="flex overflow-x-auto space-x-3 pb-2 custom-scrollbar">
             {data.projects.map(p => (
               <div 
                 key={p.id}
                 onClick={() => handleSelectProject(p.id)}
-                className={`p-4 rounded-2xl cursor-pointer transition-all border group relative ${
+                className={`p-4 rounded-2xl cursor-pointer transition-all border group relative min-w-[250px] shrink-0 ${
                   selectedProjectId === p.id 
                     ? 'bg-white border-indigo-200 shadow-md shadow-indigo-100/50 ring-1 ring-indigo-50 overflow-hidden' 
                     : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 shadow-sm'
                 }`}
               >
                 {selectedProjectId === p.id && (
-                    <div className="absolute top-0 left-0 w-1.5 h-full bg-indigo-500"></div>
+                    <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-500"></div>
                 )}
-                <div className="flex justify-between items-start mb-2 pl-2">
+                <div className="flex justify-between items-start mb-2">
                   <h3 className={`font-bold text-base tracking-tight ${selectedProjectId === p.id ? 'text-indigo-900' : 'text-slate-700 group-hover:text-slate-900'}`}>{p.name}</h3>
                 </div>
-                <div className="flex justify-between items-center pl-2">
+                <div className="flex justify-between items-center">
                    <p className="text-xs text-slate-500 line-clamp-1">{p.description || "ไม่มีรายละเอียด"}</p>
-                   <div className={`w-2.5 h-2.5 rounded-full shadow-sm ${p.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
+                   <div className={`w-2.5 h-2.5 rounded-full shadow-sm shrink-0 ml-2 ${p.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
                 </div>
               </div>
             ))}
             
             {data.projects.length === 0 && (
-              <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50">
+              <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 w-full">
                 <FolderOpen size={32} className="mx-auto mb-3 opacity-50"/>
                 <p className="font-medium">ยังไม่มีโครงการ</p>
               </div>
@@ -473,17 +472,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
         {selectedProject ? (
           <div className="flex flex-col h-full gap-6">
-             {/* Mobile Header for Selected Project */}
-             {!isSidebarOpen && (
-               <div className="lg:hidden flex items-center justify-between bg-white p-3 rounded-xl shadow-sm border border-slate-100 mb-2" onClick={() => setIsSidebarOpen(true)}>
-                  <span className="font-bold text-slate-700 flex items-center gap-2">
-                    <FolderKanban size={18} className="text-indigo-500"/>
-                    {selectedProject.name}
-                  </span>
-                  <ChevronDown size={16} className="text-slate-400"/>
-               </div>
-             )}
-
              {/* Project Header */}
              <Card className="shrink-0 bg-white border-slate-200 relative overflow-hidden p-6">
                 <div className="absolute right-0 top-0 opacity-5 pointer-events-none">

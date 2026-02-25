@@ -105,10 +105,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
     <div className="space-y-8 pb-10 animate-in fade-in duration-500">
       
       {/* 1. Hero Stats Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-4 md:gap-6">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 2xl:grid-cols-5 gap-4 md:gap-6">
         
         {/* Central Pool Card (Highlighted) */}
-        <div className="bg-gradient-to-br from-indigo-600 to-blue-700 text-white p-6 lg:p-8 rounded-3xl border border-transparent shadow-lg shadow-indigo-200/50 relative overflow-hidden group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1">
+        <div className="bg-gradient-to-br from-indigo-600 to-blue-700 text-white p-6 rounded-3xl border border-transparent shadow-lg shadow-indigo-200/50 relative overflow-hidden group hover:shadow-xl transition-all duration-300 transform hover:-translate-y-1 sm:col-span-2 lg:col-span-1 2xl:col-span-1">
           <div className="absolute top-0 right-0 p-6 opacity-10 group-hover:opacity-20 transition-opacity duration-500 group-hover:scale-110 transform">
             <Wallet size={100} className="text-white" />
           </div>
@@ -119,7 +119,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
             <span className="font-semibold text-base text-indigo-100 tracking-wide">ยอดเงินกองกลาง</span>
           </div>
           <div>
-            <h3 className="text-4xl xl:text-5xl font-extrabold tracking-tight text-white mb-2">{formatCurrency(stats.centralPool)}</h3>
+            <h3 className="text-3xl lg:text-4xl font-extrabold tracking-tight text-white mb-2 truncate" title={formatCurrency(stats.centralPool)}>{formatCurrency(stats.centralPool)}</h3>
             <p className="text-sm font-medium flex items-center gap-1.5 text-indigo-200">
               เงินสดพร้อมใช้ในระบบ
             </p>
@@ -127,7 +127,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
         </div>
 
         {/* Investment Card */}
-        <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
           <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500 group-hover:scale-110 transform">
             <DollarSign size={100} className="text-slate-900" />
           </div>
@@ -138,7 +138,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
             <span className="text-slate-500 font-semibold text-base tracking-wide">เงินลงทุนรวม</span>
           </div>
           <div>
-            <h3 className="text-3xl xl:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">{formatCurrency(stats.totalInvestment)}</h3>
+            <h3 className="text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight mb-2 truncate" title={formatCurrency(stats.totalInvestment)}>{formatCurrency(stats.totalInvestment)}</h3>
             <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
               <ArrowUpRight size={16} className="text-indigo-500" /> เงินทุนหมุนเวียนในระบบ
             </p>
@@ -146,9 +146,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
         </div>
 
         {/* Income Card */}
-        <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
           <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500 group-hover:scale-110 transform">
-            <TrendingUp size={100} className="text-slate-900" />
+            <TrendingUp size={100} className="text-emerald-600" />
           </div>
           <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-emerald-50 text-emerald-600 rounded-2xl border border-emerald-100/50">
@@ -157,17 +157,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
             <span className="text-slate-500 font-semibold text-base tracking-wide">รายรับรวม</span>
           </div>
           <div>
-            <h3 className="text-3xl xl:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">{formatCurrency(stats.totalIncome)}</h3>
-             <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
+            <h3 className="text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight mb-2 truncate" title={formatCurrency(stats.totalIncome)}>{formatCurrency(stats.totalIncome)}</h3>
+            <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
               <ArrowUpRight size={16} className="text-emerald-500" /> รายได้จากทุกโครงการ
             </p>
           </div>
         </div>
 
         {/* Expense Card */}
-        <div className="bg-white p-6 lg:p-8 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
+        <div className="bg-white p-6 rounded-3xl border border-slate-100 shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300">
           <div className="absolute top-0 right-0 p-6 opacity-[0.03] group-hover:opacity-[0.06] transition-opacity duration-500 group-hover:scale-110 transform">
-            <TrendingDown size={100} className="text-slate-900" />
+            <TrendingDown size={100} className="text-rose-600" />
           </div>
           <div className="flex items-center gap-4 mb-6">
             <div className="p-3 bg-rose-50 text-rose-600 rounded-2xl border border-rose-100/50">
@@ -176,15 +176,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
             <span className="text-slate-500 font-semibold text-base tracking-wide">รายจ่ายรวม</span>
           </div>
           <div>
-            <h3 className="text-3xl xl:text-4xl font-extrabold text-slate-800 tracking-tight mb-2">{formatCurrency(stats.totalExpense)}</h3>
-             <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
+            <h3 className="text-2xl lg:text-3xl font-extrabold text-slate-800 tracking-tight mb-2 truncate" title={formatCurrency(stats.totalExpense)}>{formatCurrency(stats.totalExpense)}</h3>
+            <p className="text-sm text-slate-500 font-medium flex items-center gap-1.5">
               <ArrowDownRight size={16} className="text-rose-500" /> ค่าใช้จ่ายทั้งหมด
             </p>
           </div>
         </div>
 
         {/* Net Profit Card (Highlighted) */}
-        <div className={`p-6 lg:p-8 rounded-3xl border shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300 ${
+        <div className={`p-6 rounded-3xl border shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300 ${
           stats.netProfit >= 0 
             ? 'bg-slate-900 text-white border-transparent' 
             : 'bg-white border-rose-200'
@@ -199,7 +199,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
             <span className={`font-semibold text-base tracking-wide ${stats.netProfit >= 0 ? 'text-slate-300' : 'text-slate-500'}`}>กำไรสุทธิ</span>
           </div>
           <div>
-            <h3 className={`text-3xl xl:text-4xl font-extrabold tracking-tight mb-2 ${stats.netProfit >= 0 ? 'text-white' : 'text-rose-600'}`}>
+            <h3 className={`text-2xl lg:text-3xl font-extrabold tracking-tight mb-2 truncate ${stats.netProfit >= 0 ? 'text-white' : 'text-rose-600'}`} title={formatCurrency(stats.netProfit)}>
               {formatCurrency(stats.netProfit)}
             </h3>
             <p className={`text-sm font-medium flex items-center gap-1.5 ${stats.netProfit >= 0 ? 'text-slate-400' : 'text-slate-400'}`}>
