@@ -12,6 +12,12 @@ const COLORS = ['#6366f1', '#10b981', '#f43f5e', '#f59e0b', '#3b82f6', '#8b5cf6'
 
 export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
   
+  // Helper to detect internal transfers (Loans/Transfers between projects)
+  const isInternalTransfer = (note: string) => {
+    if (!note) return false;
+    return /(?:\(ให้ยืม\/โอนไปโครงการ:|\(รับเงินยืม\/โอนจากโครงการ:|\(ปรับปรุงรายการ\) โอนไปโครงการ:|\(ปรับปรุงรายการ\) รับเงินโอนจากโครงการ:)/.test(note);
+  };
+
   const stats = useMemo(() => {
     let totalInvestment = 0;
     let totalIncome = 0;
@@ -19,6 +25,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
     let centralPool = 0;
 
     data.transactions.forEach(t => {
+      // Skip internal transfers for global stats to show "Real" operational figures
+      if (isInternalTransfer(t.note)) {
+        return;
+      }
+
       if (t.type === TransactionType.INVESTMENT) {
         totalInvestment += t.amount;
         centralPool += t.amount;
@@ -41,6 +52,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
   const partnerInvestments = useMemo(() => {
     const map = new Map<string, number>();
     data.transactions.forEach(t => {
+      // Skip internal transfers
+      if (isInternalTransfer(t.note)) return;
+
       if (t.partnerId) {
         if (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE) {
           const current = map.get(t.partnerId) || 0;
@@ -59,7 +73,8 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
 
   const projectPerformance = useMemo(() => {
     return data.projects.map(p => {
-      const txs = data.transactions.filter(t => t.projectId === p.id);
+      // Filter out internal transfers for project performance as well
+      const txs = data.transactions.filter(t => t.projectId === p.id && !isInternalTransfer(t.note));
       const income = txs.filter(t => t.type === TransactionType.INCOME).reduce((sum, t) => sum + t.amount, 0);
       const expense = txs.filter(t => t.type === TransactionType.EXPENSE).reduce((sum, t) => sum + t.amount, 0);
       return {

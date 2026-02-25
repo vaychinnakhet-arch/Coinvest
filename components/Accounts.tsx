@@ -77,14 +77,26 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
     let expense = 0;
     let investment = 0;
 
+    // Helper to detect internal transfers (Loans/Transfers between projects)
+    const isInternalTransfer = (note: string) => {
+      if (!note) return false;
+      return /(?:\(ให้ยืม\/โอนไปโครงการ:|\(รับเงินยืม\/โอนจากโครงการ:|\(ปรับปรุงรายการ\) โอนไปโครงการ:|\(ปรับปรุงรายการ\) รับเงินโอนจากโครงการ:)/.test(note);
+    };
+
     // We use the processed transactions (which respect date filters) for the summary cards
     processedTransactions.forEach(t => {
+      // Skip internal transfers for Income/Expense totals to show "Real" operational figures
+      if (isInternalTransfer(t.note)) {
+        return;
+      }
+
       if (t.type === TransactionType.INCOME) income += t.amount;
       else if (t.type === TransactionType.EXPENSE) expense += t.amount;
       else if (t.type === TransactionType.INVESTMENT) investment += t.amount;
     });
 
     // Current Balance is the balance of the *latest* transaction in time
+    // We do NOT filter internal transfers for balance, as they affect actual cash availability
     let currentBalance = 0;
     if (processedTransactions.length > 0) {
         if (sortOrder === 'desc') {
@@ -108,32 +120,40 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
     try {
         const doc = new jsPDF();
 
-        // Try to fetch Sarabun first (Often renders better in jsPDF without text shaper than THSarabunNew)
-        let fontName = 'Sarabun';
-        let fontUrl = 'https://raw.githubusercontent.com/cadsondemak/Sarabun/master/fonts/Sarabun-Regular.ttf';
+        // Helper to fix Thai vowel overlapping (For THSarabunNew)
+        const preprocessThaiText = (text: string) => {
+            if (!text) return "";
+            let newText = text.toString();
+
+            // 1. Fix Upper Vowel + Tone Mark (Shift Tone Mark Up)
+            // Upper Vowels: \u0E31\u0E34\u0E35\u0E36\u0E37\u0E47\u0E4D\u0E4E
+            // Tone Marks: \u0E48\u0E49\u0E4A\u0E4B\u0E4C
+            const toneMap: Record<string, string> = {
+                '\u0E48': '\uF70A', // Mai Ek
+                '\u0E49': '\uF70B', // Mai Tho
+                '\u0E4A': '\uF70C', // Mai Tri
+                '\u0E4B': '\uF70D', // Mai Chattawa
+                '\u0E4C': '\uF70E'  // Thanthakhat
+            };
+
+            newText = newText.replace(/([\u0E31\u0E34\u0E35\u0E36\u0E37\u0E47\u0E4D\u0E4E])([\u0E48\u0E49\u0E4A\u0E4B\u0E4C])/g, (match, p1, p2) => {
+                return p1 + (toneMap[p2] || p2);
+            });
+
+            // 2. Fix Low Consonant + Lower Vowel (Remove Tail)
+            // Yo Ying (0E0D) -> F70F
+            // Do Chada (0E0E) -> F700
+            newText = newText.replace(/\u0E0D([\u0E38\u0E39\u0E3A])/g, '\uF70F$1');
+            newText = newText.replace(/\u0E0E([\u0E38\u0E39\u0E3A])/g, '\uF700$1');
+
+            return newText;
+        };
+
+        // Use THSarabunNew as primary font because it supports PUA glyphs for fixing overlapping
+        const fontName = 'THSarabunNew';
+        const fontUrl = 'https://raw.githubusercontent.com/sathittham/THSarabunNew/master/THSarabunNew.ttf';
         
         try {
-            const fontResponse = await fetch(fontUrl);
-            if (!fontResponse.ok) throw new Error('Failed to fetch Sarabun');
-            const fontBlob = await fontResponse.blob();
-            const reader = new FileReader();
-            
-            await new Promise((resolve, reject) => {
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(fontBlob);
-            }).then((result) => {
-                const base64data = result as string;
-                const fontBase64 = base64data.split(',')[1];
-                doc.addFileToVFS('Sarabun-Regular.ttf', fontBase64);
-                doc.addFont('Sarabun-Regular.ttf', 'Sarabun', 'normal');
-                doc.setFont('Sarabun');
-            });
-        } catch (e) {
-            console.warn("Failed to load Sarabun, falling back to THSarabunNew", e);
-            // Fallback to THSarabunNew
-            fontName = 'THSarabunNew';
-            fontUrl = 'https://raw.githubusercontent.com/sathittham/THSarabunNew/master/THSarabunNew.ttf';
             const fontResponse = await fetch(fontUrl);
             if (!fontResponse.ok) throw new Error('Failed to fetch THSarabunNew');
             const fontBlob = await fontResponse.blob();
@@ -150,39 +170,44 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
                 doc.addFont('THSarabunNew.ttf', 'THSarabunNew', 'normal');
                 doc.setFont('THSarabunNew');
             });
+        } catch (e) {
+            console.error("Failed to load font", e);
+            alert("ไม่สามารถโหลดฟอนต์ภาษาไทยได้");
+            setIsExporting(false);
+            return;
         }
 
         // Title
-        doc.setFontSize(fontName === 'THSarabunNew' ? 20 : 16);
-        doc.text('รายงานสรุปรายรับ-รายจ่าย', 105, 20, { align: 'center' });
+        doc.setFontSize(20);
+        doc.text(preprocessThaiText('รายงานสรุปรายรับ-รายจ่าย'), 105, 20, { align: 'center' });
         
         // Subtitle (Date Range / Project)
-        doc.setFontSize(fontName === 'THSarabunNew' ? 16 : 12);
+        doc.setFontSize(16);
         let subtitle = `โครงการ: ${filterProject === 'all' ? 'ทั้งหมด' : data.projects.find(p => p.id === filterProject)?.name}`;
         if (startDate || endDate) {
             subtitle += ` | วันที่: ${startDate ? new Date(startDate).toLocaleDateString('th-TH') : 'เริ่มต้น'} - ${endDate ? new Date(endDate).toLocaleDateString('th-TH') : 'ปัจจุบัน'}`;
         }
-        doc.text(subtitle, 105, 30, { align: 'center' });
+        doc.text(preprocessThaiText(subtitle), 105, 30, { align: 'center' });
 
         // Summary Table
         autoTable(doc, {
             startY: 40,
-            head: [['รายการ', 'จำนวนเงิน (บาท)']],
+            head: [['รายการ', 'จำนวนเงิน (บาท)'].map(preprocessThaiText)],
             body: [
-                ['รายรับรวม', formatCurrency(summary.income)],
-                ['รายจ่ายรวม', formatCurrency(summary.expense)],
-                ['คงเหลือสุทธิ', formatCurrency(summary.income - summary.expense)],
+                ['รายรับรวม', formatCurrency(summary.income)].map(val => preprocessThaiText(val.toString())),
+                ['รายจ่ายรวม', formatCurrency(summary.expense)].map(val => preprocessThaiText(val.toString())),
+                ['คงเหลือสุทธิ', formatCurrency(summary.income - summary.expense)].map(val => preprocessThaiText(val.toString())),
             ],
             styles: { 
                 font: fontName, 
-                fontSize: fontName === 'THSarabunNew' ? 14 : 10,
-                cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } // Add padding to prevent vowel clipping
+                fontSize: 14,
+                cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } 
             },
             headStyles: { 
                 fillColor: [63, 81, 181], 
                 font: fontName, 
                 fontStyle: 'normal', 
-                fontSize: fontName === 'THSarabunNew' ? 14 : 10 
+                fontSize: 14 
             },
             columnStyles: {
                 1: { halign: 'right' }
@@ -195,7 +220,7 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
         });
 
         // Transactions Table
-        const tableColumn = ["วันที่", "รายการ", "โครงการ", "รายรับ", "รายจ่าย", "คงเหลือ"];
+        const tableColumn = ["วันที่", "รายการ", "โครงการ", "รายรับ", "รายจ่าย", "คงเหลือ"].map(preprocessThaiText);
         const tableRows: any[] = [];
 
         processedTransactions.forEach(t => {
@@ -205,9 +230,9 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
             const balance = formatCurrency(t.balance);
 
             tableRows.push([
-                new Date(t.date).toLocaleDateString('th-TH'),
-                t.note,
-                project,
+                preprocessThaiText(new Date(t.date).toLocaleDateString('th-TH')),
+                preprocessThaiText(t.note),
+                preprocessThaiText(project),
                 income,
                 expense,
                 balance
@@ -220,14 +245,14 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
             body: tableRows,
             styles: { 
                 font: fontName, 
-                fontSize: fontName === 'THSarabunNew' ? 14 : 10,
-                cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } // Add padding to prevent vowel clipping
+                fontSize: 14,
+                cellPadding: { top: 3, bottom: 3, left: 2, right: 2 }
             },
             headStyles: { 
                 fillColor: [63, 81, 181], 
                 font: fontName, 
                 fontStyle: 'normal', 
-                fontSize: fontName === 'THSarabunNew' ? 14 : 10 
+                fontSize: 14 
             },
             columnStyles: {
                 0: { cellWidth: 25 },
@@ -249,7 +274,7 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
 
     } catch (error) {
         console.error("Export failed", error);
-        alert("ขออภัย ไม่สามารถสร้าง PDF ได้ในขณะนี้ (ไม่สามารถโหลดฟอนต์ภาษาไทยได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต)");
+        alert("ขออภัย ไม่สามารถสร้าง PDF ได้ในขณะนี้");
         setIsExporting(false);
     }
   };
