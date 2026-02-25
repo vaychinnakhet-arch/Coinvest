@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { AppState, Project, Transaction, TransactionType, Partner } from '../types';
 import { Card, Button, Input, Select, Badge } from './ui/Components';
-import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban, ChevronDown, ChevronUp, Image as ImageIcon, Receipt, Eye, Loader2 } from 'lucide-react';
+import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban, ChevronDown, ChevronUp, Image as ImageIcon, Receipt, Eye, Loader2, TrendingUp, TrendingDown } from 'lucide-react';
 
 interface ProjectsProps {
   data: AppState;
@@ -48,9 +48,40 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const otherProjects = data.projects.filter(p => p.id !== selectedProjectId);
   
   // Ensure strict date sorting (Newest -> Oldest)
-  const projectTransactions = data.transactions
+  const projectTransactions = useMemo(() => data.transactions
     .filter(t => t.projectId === selectedProjectId)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [data.transactions, selectedProjectId]);
+
+  // Calculate Stats
+  const projectStats = useMemo(() => {
+    let income = 0;
+    let expense = 0;
+    let investment = 0;
+
+    projectTransactions.forEach(t => {
+      if (t.type === TransactionType.INCOME) income += t.amount;
+      else if (t.type === TransactionType.EXPENSE) expense += t.amount;
+      else if (t.type === TransactionType.INVESTMENT) investment += t.amount;
+    });
+
+    return {
+      income,
+      expense,
+      investment,
+      balance: income + investment - expense
+    };
+  }, [projectTransactions]);
+
+  // Group transactions by date
+  const groupedTransactions = useMemo(() => {
+    const groups: Record<string, Transaction[]> = {};
+    projectTransactions.forEach(t => {
+      const dateKey = t.date; // YYYY-MM-DD
+      if (!groups[dateKey]) groups[dateKey] = [];
+      groups[dateKey].push(t);
+    });
+    return groups;
+  }, [projectTransactions]);
 
   // Reset split state when opening form
   useEffect(() => {
@@ -211,12 +242,23 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
             });
 
             if (sourceProject) {
+               // 1. Expense in Source Project (Money leaving)
                onAddTransaction({
                    projectId: sourceProject.id,
                    type: TransactionType.EXPENSE,
                    amount: totalAmount,
                    date: transDate,
                    note: `(ปรับปรุงรายการ) โอนไปโครงการ: ${selectedProject?.name} - ${transNote}`,
+                   partnerId: undefined
+                });
+
+               // 2. Income in Current Project (Money entering) - FIX for Double Counting
+               onAddTransaction({
+                   projectId: selectedProjectId,
+                   type: TransactionType.INCOME,
+                   amount: totalAmount,
+                   date: transDate,
+                   note: `(ปรับปรุงรายการ) รับเงินโอนจากโครงการ: ${sourceProject.name} - ${transNote}`,
                    partnerId: undefined
                 });
             }
@@ -251,24 +293,38 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
        
        if (isProject) {
           const sourceProj = data.projects.find(p => p.id === sourceKey);
+          
+          // 1. The Expense in the Current Project (The one spending the money)
           onAddTransaction({
              projectId: selectedProjectId,
              type: TransactionType.EXPENSE,
              amount: amount,
              date: transDate,
-             note: `${transNote} (ดึงเงินจากโครงการ: ${sourceProj?.name})`,
+             note: `${transNote} (จ่ายโดยโครงการ: ${sourceProj?.name})`,
              partnerId: undefined,
              receiptImage: transImage,
              receiptImage2: transImage2,
              receiptImage3: transImage3,
              receiptImage4: transImage4
           });
+
+          // 2. The Expense in the Source Project (Money leaving as a loan/transfer)
           onAddTransaction({
              projectId: sourceKey,
              type: TransactionType.EXPENSE,
              amount: amount,
              date: transDate,
-             note: `(นำเงินไปหมุนให้โครงการ: ${selectedProject?.name}) ${transNote}`,
+             note: `(ให้ยืม/โอนไปโครงการ: ${selectedProject?.name}) ${transNote}`,
+             partnerId: undefined
+          });
+
+          // 3. The Income in the Current Project (Money entering as a loan/transfer) - FIX for Double Counting
+          onAddTransaction({
+             projectId: selectedProjectId,
+             type: TransactionType.INCOME,
+             amount: amount,
+             date: transDate,
+             note: `(รับเงินยืม/โอนจากโครงการ: ${sourceProj?.name}) สำหรับ: ${transNote}`,
              partnerId: undefined
           });
 
@@ -401,67 +457,87 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       <div className="w-full flex flex-col gap-4 transition-all duration-300">
         <div className="flex justify-between items-center px-1">
           <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 tracking-tight">
-            โครงการ
+            <FolderKanban className="text-indigo-600" size={24}/> โครงการทั้งหมด
           </h2>
-          <Button size="sm" onClick={(e) => { e.stopPropagation(); setShowNewProjectForm(!showNewProjectForm); }} className="rounded-xl px-3 py-1.5">
-            <Plus size={16} /> สร้างใหม่
+          <Button size="sm" onClick={(e) => { e.stopPropagation(); setShowNewProjectForm(!showNewProjectForm); }} className="rounded-xl px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-indigo-200 shadow-sm">
+            <Plus size={18} className="mr-1" /> สร้างโครงการใหม่
           </Button>
         </div>
 
         {/* Collapsible Area on Mobile */}
         <div className="space-y-4">
           {showNewProjectForm && (
-            <Card className="animate-in slide-in-from-top-4 fade-in duration-300 !p-5">
-              <form onSubmit={handleCreateProject} className="flex flex-col sm:flex-row gap-3">
-                <Input 
-                  placeholder="ชื่อโครงการ" 
-                  value={newProjectName} 
-                  onChange={e => setNewProjectName(e.target.value)} 
-                  autoFocus
-                  className="flex-1"
-                />
-                <Input 
-                  placeholder="รายละเอียดสั้นๆ" 
-                  value={newProjectDesc} 
-                  onChange={e => setNewProjectDesc(e.target.value)} 
-                  className="flex-1"
-                />
+            <div className="animate-in slide-in-from-top-4 fade-in duration-300 bg-white p-5 rounded-2xl border border-indigo-100 shadow-lg shadow-indigo-50 relative overflow-hidden">
+              <div className="absolute top-0 right-0 p-4 opacity-5">
+                 <FolderOpen size={100}/>
+              </div>
+              <h3 className="text-lg font-bold text-slate-800 mb-4 relative z-10">สร้างโครงการใหม่</h3>
+              <form onSubmit={handleCreateProject} className="flex flex-col sm:flex-row gap-4 relative z-10">
+                <div className="flex-1 space-y-1">
+                   <label className="text-xs font-semibold text-slate-500 uppercase ml-1">ชื่อโครงการ</label>
+                   <Input 
+                     placeholder="เช่น สร้างบ้านลูกค้า A..." 
+                     value={newProjectName} 
+                     onChange={e => setNewProjectName(e.target.value)} 
+                     autoFocus
+                     className="w-full bg-slate-50 border-slate-200 focus:bg-white transition-all"
+                   />
+                </div>
+                <div className="flex-1 space-y-1">
+                   <label className="text-xs font-semibold text-slate-500 uppercase ml-1">รายละเอียด</label>
+                   <Input 
+                     placeholder="รายละเอียดสั้นๆ (ถ้ามี)" 
+                     value={newProjectDesc} 
+                     onChange={e => setNewProjectDesc(e.target.value)} 
+                     className="w-full bg-slate-50 border-slate-200 focus:bg-white transition-all"
+                   />
+                </div>
                 <div className="flex gap-2 justify-end mt-2 sm:mt-0 items-end">
-                  <Button type="button" variant="ghost" size="sm" onClick={() => setShowNewProjectForm(false)}>ยกเลิก</Button>
-                  <Button type="submit" size="sm">บันทึก</Button>
+                  <Button type="button" variant="ghost" onClick={() => setShowNewProjectForm(false)} className="h-10 px-4 rounded-xl hover:bg-slate-100 text-slate-500">ยกเลิก</Button>
+                  <Button type="submit" className="h-10 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 font-medium">บันทึก</Button>
                 </div>
               </form>
-            </Card>
+            </div>
           )}
 
-          <div className="flex overflow-x-auto space-x-3 pb-2 custom-scrollbar">
+          <div className="flex overflow-x-auto space-x-4 pb-4 px-1 custom-scrollbar snap-x">
             {data.projects.map(p => (
               <div 
                 key={p.id}
                 onClick={() => handleSelectProject(p.id)}
-                className={`p-4 rounded-2xl cursor-pointer transition-all border group relative min-w-[250px] shrink-0 ${
+                className={`snap-start p-5 rounded-2xl cursor-pointer transition-all duration-200 border group relative min-w-[280px] shrink-0 flex flex-col justify-between h-[140px] ${
                   selectedProjectId === p.id 
-                    ? 'bg-white border-indigo-200 shadow-md shadow-indigo-100/50 ring-1 ring-indigo-50 overflow-hidden' 
-                    : 'bg-white border-slate-100 hover:bg-slate-50 hover:border-slate-200 shadow-sm'
+                    ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 border-indigo-600 shadow-lg shadow-indigo-200 text-white transform scale-[1.02]' 
+                    : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md text-slate-600 hover:bg-slate-50'
                 }`}
               >
-                {selectedProjectId === p.id && (
-                    <div className="absolute top-0 left-0 w-full h-1.5 bg-indigo-500"></div>
-                )}
-                <div className="flex justify-between items-start mb-2">
-                  <h3 className={`font-bold text-base tracking-tight ${selectedProjectId === p.id ? 'text-indigo-900' : 'text-slate-700 group-hover:text-slate-900'}`}>{p.name}</h3>
+                <div className="flex justify-between items-start">
+                  <div className={`p-2 rounded-xl ${selectedProjectId === p.id ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600'}`}>
+                     <Building2 size={20}/>
+                  </div>
+                  <div className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
+                    selectedProjectId === p.id 
+                      ? (p.status === 'active' ? 'bg-emerald-400/20 text-emerald-100' : 'bg-amber-400/20 text-amber-100')
+                      : (p.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')
+                  }`}>
+                    {p.status === 'active' ? 'Active' : 'Planning'}
+                  </div>
                 </div>
-                <div className="flex justify-between items-center">
-                   <p className="text-xs text-slate-500 line-clamp-1">{p.description || "ไม่มีรายละเอียด"}</p>
-                   <div className={`w-2.5 h-2.5 rounded-full shadow-sm shrink-0 ml-2 ${p.status === 'active' ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
+                
+                <div>
+                  <h3 className={`font-bold text-lg tracking-tight line-clamp-1 mb-1 ${selectedProjectId === p.id ? 'text-white' : 'text-slate-800'}`}>{p.name}</h3>
+                  <p className={`text-xs line-clamp-1 ${selectedProjectId === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>
+                    {p.description || "ไม่มีรายละเอียดเพิ่มเติม"}
+                  </p>
                 </div>
               </div>
             ))}
             
             {data.projects.length === 0 && (
-              <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 w-full">
-                <FolderOpen size={32} className="mx-auto mb-3 opacity-50"/>
-                <p className="font-medium">ยังไม่มีโครงการ</p>
+              <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 w-full flex flex-col items-center justify-center min-h-[140px]">
+                <FolderOpen size={32} className="mb-2 opacity-50"/>
+                <p className="font-medium text-sm">ยังไม่มีโครงการ</p>
+                <p className="text-xs opacity-70">สร้างโครงการแรกของคุณเลย</p>
               </div>
             )}
           </div>
@@ -472,147 +548,199 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
         {selectedProject ? (
           <div className="flex flex-col h-full gap-6">
-             {/* Project Header */}
-             <Card className="shrink-0 bg-white border-slate-200 relative overflow-hidden p-6">
-                <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
-                    <FolderKanban size={150} className="text-indigo-500 transform translate-x-10 -translate-y-10"/>
-                </div>
-                <div className="relative z-10 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-                   <div>
-                     <h2 className="text-2xl font-bold text-slate-800 mb-2">{selectedProject.name}</h2>
-                     <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500">
-                        <span className="bg-slate-100 px-3 py-1 rounded-full flex items-center gap-2">
-                          <Calendar size={14}/> {new Date(selectedProject.startDate).toLocaleDateString('th-TH')}
-                        </span>
-                        {selectedProject.description && <span>{selectedProject.description}</span>}
-                     </div>
+             {/* Project Header & Stats */}
+             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0">
+                {/* Main Info Card */}
+                <Card className="lg:col-span-3 bg-white border-slate-200 relative overflow-hidden p-6 shadow-sm">
+                   <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
+                       <FolderKanban size={150} className="text-indigo-500 transform translate-x-10 -translate-y-10"/>
                    </div>
-                   <Button onClick={() => { resetForm(); setIsFormOpen(true); }} className="shrink-0 shadow-md shadow-indigo-200">
-                     <Plus size={18} className="mr-2" /> บันทึกรายการ
-                   </Button>
+                   <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                      <div>
+                        <div className="flex items-center gap-3 mb-2">
+                           <h2 className="text-3xl font-bold text-slate-800 tracking-tight">{selectedProject.name}</h2>
+                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${selectedProject.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                             {selectedProject.status === 'active' ? 'Active' : 'Planning'}
+                           </span>
+                        </div>
+                        <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
+                           <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
+                             <Calendar size={14} className="text-slate-400"/> 
+                             {new Date(selectedProject.startDate).toLocaleDateString('th-TH', { dateStyle: 'long' })}
+                           </span>
+                           {selectedProject.description && (
+                             <span className="flex items-center gap-1.5 px-2">
+                               {selectedProject.description}
+                             </span>
+                           )}
+                        </div>
+                      </div>
+                      
+                      <div className="flex items-center gap-3">
+                         <div className="text-right hidden md:block mr-2">
+                            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">คงเหลือสุทธิ</p>
+                            <p className={`text-2xl font-bold ${projectStats.balance >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
+                              {projectStats.balance.toLocaleString()}
+                            </p>
+                         </div>
+                         <Button onClick={() => { resetForm(); setIsFormOpen(true); }} className="shrink-0 shadow-lg shadow-indigo-200 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl">
+                           <Plus size={20} className="mr-2" /> บันทึกรายการ
+                         </Button>
+                      </div>
+                   </div>
+                </Card>
+
+                {/* Stat Cards */}
+                <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 flex items-center justify-between">
+                   <div>
+                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">รายรับรวม</p>
+                      <p className="text-2xl font-bold text-emerald-700">+{projectStats.income.toLocaleString()}</p>
+                   </div>
+                   <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                      <TrendingUp size={20}/>
+                   </div>
                 </div>
-             </Card>
+
+                <div className="bg-rose-50/50 p-5 rounded-2xl border border-rose-100 flex items-center justify-between">
+                   <div>
+                      <p className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">รายจ่ายรวม</p>
+                      <p className="text-2xl font-bold text-rose-700">-{projectStats.expense.toLocaleString()}</p>
+                   </div>
+                   <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
+                      <TrendingDown size={20}/>
+                   </div>
+                </div>
+
+                <div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 flex items-center justify-between">
+                   <div>
+                      <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">เงินลงทุน</p>
+                      <p className="text-2xl font-bold text-indigo-700">+{projectStats.investment.toLocaleString()}</p>
+                   </div>
+                   <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                      <DollarSign size={20}/>
+                   </div>
+                </div>
+             </div>
 
              {/* Content: List & Form */}
              <div className="flex-1 flex flex-col gap-6 min-h-0">
                 
                 {/* Transaction List */}
-                <Card className="flex-1 flex flex-col min-h-[500px] overflow-hidden shadow-sm" title="รายการเคลื่อนไหว">
-                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar space-y-3 p-1">
-                      {projectTransactions.length === 0 ? (
-                        <div className="text-center py-20 text-slate-300">
-                          <FileText size={48} className="mx-auto mb-4 opacity-30"/>
-                          <p className="text-lg">ยังไม่มีรายการบันทึก</p>
-                          <p className="text-sm">เริ่มบันทึกรายการแรกที่ฟอร์มด้านข้าง</p>
+                <Card className="flex-1 flex flex-col min-h-[500px] overflow-hidden shadow-sm border-slate-200" title="รายการเคลื่อนไหว (Timeline)">
+                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar p-1">
+                      {Object.keys(groupedTransactions).length === 0 ? (
+                        <div className="text-center py-20 text-slate-300 flex flex-col items-center">
+                          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
+                             <FileText size={40} className="opacity-20 text-slate-500"/>
+                          </div>
+                          <p className="text-lg font-medium text-slate-500">ยังไม่มีรายการบันทึก</p>
+                          <p className="text-sm text-slate-400 max-w-xs mx-auto mt-1">เริ่มบันทึกรายรับหรือรายจ่ายแรกของคุณได้ที่ปุ่ม "บันทึกรายการ" ด้านบน</p>
                         </div>
                       ) : (
-                        projectTransactions.map(t => {
-                          const partner = data.partners.find(p => p.id === t.partnerId);
-                          const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
-                          
-                          return (
-                          <div key={t.id} className={`flex flex-col sm:flex-row sm:items-start justify-between p-4 rounded-xl border transition-all duration-200 group gap-3 ${editingId === t.id ? 'bg-amber-50 border-amber-300 shadow-md transform scale-[1.01]' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
-                             {/* Left: Icon & Info */}
-                             <div className="flex items-start gap-3 overflow-hidden flex-1 min-w-0">
-                                <div className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-sm mt-0.5 ${getTransactionColor(t.type)}`}>
-                                   {t.type === TransactionType.INCOME ? <Plus size={18}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={18}/> : <ArrowRight size={18} className="-rotate-45"/>}
-                                </div>
-                                <div className="min-w-0 flex-1">
-                                   <div className="mb-1 pr-2">
-                                     {/* Note Text: Break Words and Line Clamp */}
-                                     <p className="font-bold text-slate-800 text-sm leading-snug break-words line-clamp-2">
-                                       {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
-                                     </p>
-                                   </div>
-                                   
-                                   <div className="flex flex-wrap items-center gap-2 mt-1.5">
-                                      <span className="text-xs text-slate-400 bg-slate-50 px-2 py-1 rounded-md border border-slate-100 whitespace-nowrap">
-                                        {new Date(t.date).toLocaleDateString('th-TH', { year: '2-digit', month: 'short', day: 'numeric' })}
-                                      </span>
-                                      
-                                      {partner ? (
-                                         <span 
-                                           className="flex items-center gap-1.5 text-xs font-medium px-2.5 py-1 rounded-md max-w-[120px] truncate shadow-sm border border-slate-100"
-                                           style={{ backgroundColor: `${partner.color}15`, color: partner.color }}
-                                         >
-                                           <User size={12}/> {partner.name}
-                                         </span>
-                                      ) : (
-                                         <span className="flex items-center gap-1.5 text-xs text-slate-500 font-medium bg-slate-100 px-2.5 py-1 rounded-md shadow-sm border border-slate-200">
-                                           <Wallet size={12}/> กองกลาง
-                                         </span>
-                                      )}
+                        <div className="space-y-8 pb-10">
+                          {Object.entries(groupedTransactions).map(([date, transactions]) => (
+                            <div key={date} className="relative">
+                               {/* Date Header */}
+                               <div className="sticky top-0 z-10 flex items-center gap-4 mb-4 bg-white/95 backdrop-blur-sm py-2 border-b border-slate-50">
+                                  <div className="w-3 h-3 rounded-full bg-indigo-500 ring-4 ring-indigo-50"></div>
+                                  <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
+                                    {new Date(date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
+                                  </span>
+                                  <div className="h-px flex-1 bg-slate-100"></div>
+                               </div>
 
-                                      {isDirectPayment && (
-                                       <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-bold whitespace-nowrap">
-                                         จ่ายตรง
-                                       </span>
-                                      )}
+                               {/* Timeline Line */}
+                               <div className="absolute left-1.5 top-10 bottom-0 w-px bg-slate-100 -z-10"></div>
 
-                                      {t.receiptImage && (
-                                        <button 
-                                          onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage || null); }}
-                                          className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
-                                        >
-                                           <ImageIcon size={12} /> ดูสลิป 1
-                                        </button>
-                                      )}
-                                      {t.receiptImage2 && (
-                                        <button 
-                                          onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage2 || null); }}
-                                          className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
-                                        >
-                                           <ImageIcon size={12} /> ดูสลิป 2
-                                        </button>
-                                      )}
-                                      {t.receiptImage3 && (
-                                        <button 
-                                          onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage3 || null); }}
-                                          className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
-                                        >
-                                           <ImageIcon size={12} /> ดูสลิป 3
-                                        </button>
-                                      )}
-                                      {t.receiptImage4 && (
-                                        <button 
-                                          onClick={(e) => { e.stopPropagation(); setViewImage(t.receiptImage4 || null); }}
-                                          className="flex items-center gap-1 text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-md border border-indigo-100 font-medium hover:bg-indigo-100 transition-colors"
-                                        >
-                                           <ImageIcon size={12} /> ดูสลิป 4
-                                        </button>
-                                      )}
-                                   </div>
-                                </div>
-                             </div>
-                             
-                             {/* Right: Amount & Actions */}
-                             <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-2 pl-0 sm:pl-4 w-full sm:w-auto shrink-0 border-t sm:border-t-0 border-slate-50 pt-3 sm:pt-0 mt-2 sm:mt-0">
-                                <span className={`font-bold text-lg tracking-tight ${
-                                  t.type === TransactionType.INCOME ? 'text-emerald-600' : 
-                                  t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
-                                }`}>
-                                  {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
-                                </span>
-                                
-                                <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                                  <button
-                                    onClick={(e) => { e.stopPropagation(); startEditing(t); }}
-                                    className="p-2 text-slate-400 hover:text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors"
-                                    title="แก้ไข"
-                                  >
-                                    <Pencil size={16} />
-                                  </button>
-                                  <button 
-                                    onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
-                                    className="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors"
-                                    title="ลบ"
-                                  >
-                                    <Trash2 size={16} />
-                                  </button>
-                                </div>
-                             </div>
-                          </div>
-                        )})
+                               <div className="space-y-3 pl-8">
+                                  {transactions.map(t => {
+                                    const partner = data.partners.find(p => p.id === t.partnerId);
+                                    const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
+                                    
+                                    return (
+                                    <div key={t.id} className={`relative flex flex-col sm:flex-row sm:items-start justify-between p-4 rounded-2xl border transition-all duration-200 group gap-4 ${editingId === t.id ? 'bg-amber-50 border-amber-300 shadow-md ring-1 ring-amber-200' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
+                                       
+                                       {/* Connector Dot */}
+                                       <div className="absolute -left-[30px] top-6 w-2 h-2 rounded-full bg-slate-200 border-2 border-white ring-1 ring-slate-100 group-hover:bg-indigo-400 transition-colors"></div>
+
+                                       {/* Left: Icon & Info */}
+                                       <div className="flex items-start gap-4 overflow-hidden flex-1 min-w-0">
+                                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm mt-0.5 ${getTransactionColor(t.type)}`}>
+                                             {t.type === TransactionType.INCOME ? <Plus size={20} strokeWidth={3}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={20} strokeWidth={3}/> : <ArrowRight size={20} strokeWidth={3} className="-rotate-45"/>}
+                                          </div>
+                                          <div className="min-w-0 flex-1 pt-0.5">
+                                             <div className="mb-1.5 pr-2">
+                                               <p className="font-bold text-slate-800 text-base leading-snug break-words">
+                                                 {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
+                                               </p>
+                                             </div>
+                                             
+                                             <div className="flex flex-wrap items-center gap-2">
+                                                {partner ? (
+                                                   <span 
+                                                     className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg max-w-[140px] truncate border"
+                                                     style={{ backgroundColor: `${partner.color}10`, color: partner.color, borderColor: `${partner.color}20` }}
+                                                   >
+                                                     <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor: partner.color}}></div> {partner.name}
+                                                   </span>
+                                                ) : (
+                                                   <span className="flex items-center gap-1.5 text-[11px] text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
+                                                     <Wallet size={10}/> กองกลาง
+                                                   </span>
+                                                )}
+
+                                                {isDirectPayment && (
+                                                 <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg border border-indigo-100 font-bold whitespace-nowrap">
+                                                   จ่ายตรง
+                                                 </span>
+                                                )}
+
+                                                {/* Receipt Badges */}
+                                                {[t.receiptImage, t.receiptImage2, t.receiptImage3, t.receiptImage4].map((img, idx) => img && (
+                                                  <button 
+                                                    key={idx}
+                                                    onClick={(e) => { e.stopPropagation(); setViewImage(img); }}
+                                                    className="flex items-center gap-1 text-[10px] bg-slate-50 text-slate-600 px-2 py-1 rounded-lg border border-slate-200 font-medium hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all"
+                                                  >
+                                                     <ImageIcon size={12} /> สลิป {idx + 1}
+                                                  </button>
+                                                ))}
+                                             </div>
+                                          </div>
+                                       </div>
+                                       
+                                       {/* Right: Amount & Actions */}
+                                       <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 pl-0 sm:pl-4 w-full sm:w-auto shrink-0 border-t sm:border-t-0 border-slate-50 pt-3 sm:pt-0 mt-2 sm:mt-0">
+                                          <span className={`font-bold text-xl tracking-tight ${
+                                            t.type === TransactionType.INCOME ? 'text-emerald-600' : 
+                                            t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
+                                          }`}>
+                                            {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
+                                          </span>
+                                          
+                                          <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all transform translate-y-2 sm:group-hover:translate-y-0">
+                                            <button
+                                              onClick={(e) => { e.stopPropagation(); startEditing(t); }}
+                                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
+                                              title="แก้ไข"
+                                            >
+                                              <Pencil size={16} />
+                                            </button>
+                                            <button 
+                                              onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
+                                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
+                                              title="ลบ"
+                                            >
+                                              <Trash2 size={16} />
+                                            </button>
+                                          </div>
+                                       </div>
+                                    </div>
+                                  )})}
+                               </div>
+                            </div>
+                          ))}
+                        </div>
                       )}
                    </div>
                 </Card>

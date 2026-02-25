@@ -308,7 +308,7 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                               <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-xl">
                                  <div className="flex items-center gap-2">
                                     <span className="text-slate-400"><ArrowRight size={14}/></span>
-                                    <span className="font-medium text-slate-700 truncate max-w-[120px]">{item.targetName}</span>
+                                    <span className="font-medium text-slate-700">{item.targetName}</span>
                                  </div>
                                  <span className="font-bold text-emerald-600 whitespace-nowrap">{formatMoney(item.amount)}</span>
                               </div>
@@ -335,7 +335,7 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                               <div key={idx} className="flex justify-between items-center text-sm p-2 bg-slate-50 rounded-xl">
                                  <div className="flex items-center gap-2">
                                     <span className="text-slate-400 rotate-180"><ArrowRight size={14}/></span>
-                                    <span className="font-medium text-slate-700 truncate max-w-[120px]">{item.sourceName}</span>
+                                    <span className="font-medium text-slate-700">{item.sourceName}</span>
                                  </div>
                                  <span className="font-bold text-rose-500 whitespace-nowrap">{formatMoney(item.amount)}</span>
                               </div>

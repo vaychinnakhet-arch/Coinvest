@@ -1,9 +1,9 @@
 import React, { useState, useMemo } from 'react';
 import { AppState, TransactionType } from '../types';
 import { Card, Select, Input, Button } from './ui/Components';
-import { FileText, TrendingUp, TrendingDown, DollarSign, Search, Filter, Wallet, ArrowDownUp, ArrowUp, ArrowDown, Download, Loader2 } from 'lucide-react';
+import { FileText, TrendingUp, TrendingDown, DollarSign, Search, Filter, Wallet, ArrowDownUp, ArrowUp, ArrowDown, Download, Loader2, Building2, Calendar } from 'lucide-react';
 import jsPDF from 'jspdf';
-import 'jspdf-autotable';
+import autoTable from 'jspdf-autotable';
 
 interface AccountsProps {
   data: AppState;
@@ -108,94 +108,148 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
     try {
         const doc = new jsPDF();
 
-        // Fetch Thai font from a reliable source (Google Fonts or GitHub Raw)
-        // Using Sarabun from GitHub Raw as it's a standard Thai font
-        const fontResponse = await fetch('https://raw.githubusercontent.com/cadsondemak/Sarabun/master/fonts/Sarabun-Regular.ttf');
+        // Try to fetch Sarabun first (Often renders better in jsPDF without text shaper than THSarabunNew)
+        let fontName = 'Sarabun';
+        let fontUrl = 'https://raw.githubusercontent.com/cadsondemak/Sarabun/master/fonts/Sarabun-Regular.ttf';
         
-        if (!fontResponse.ok) {
-            throw new Error('Failed to fetch font');
+        try {
+            const fontResponse = await fetch(fontUrl);
+            if (!fontResponse.ok) throw new Error('Failed to fetch Sarabun');
+            const fontBlob = await fontResponse.blob();
+            const reader = new FileReader();
+            
+            await new Promise((resolve, reject) => {
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(fontBlob);
+            }).then((result) => {
+                const base64data = result as string;
+                const fontBase64 = base64data.split(',')[1];
+                doc.addFileToVFS('Sarabun-Regular.ttf', fontBase64);
+                doc.addFont('Sarabun-Regular.ttf', 'Sarabun', 'normal');
+                doc.setFont('Sarabun');
+            });
+        } catch (e) {
+            console.warn("Failed to load Sarabun, falling back to THSarabunNew", e);
+            // Fallback to THSarabunNew
+            fontName = 'THSarabunNew';
+            fontUrl = 'https://raw.githubusercontent.com/sathittham/THSarabunNew/master/THSarabunNew.ttf';
+            const fontResponse = await fetch(fontUrl);
+            if (!fontResponse.ok) throw new Error('Failed to fetch THSarabunNew');
+            const fontBlob = await fontResponse.blob();
+            const reader = new FileReader();
+            
+            await new Promise((resolve, reject) => {
+                reader.onloadend = () => resolve(reader.result);
+                reader.onerror = reject;
+                reader.readAsDataURL(fontBlob);
+            }).then((result) => {
+                const base64data = result as string;
+                const fontBase64 = base64data.split(',')[1];
+                doc.addFileToVFS('THSarabunNew.ttf', fontBase64);
+                doc.addFont('THSarabunNew.ttf', 'THSarabunNew', 'normal');
+                doc.setFont('THSarabunNew');
+            });
         }
 
-        const fontBlob = await fontResponse.blob();
-        const reader = new FileReader();
+        // Title
+        doc.setFontSize(fontName === 'THSarabunNew' ? 20 : 16);
+        doc.text('รายงานสรุปรายรับ-รายจ่าย', 105, 20, { align: 'center' });
+        
+        // Subtitle (Date Range / Project)
+        doc.setFontSize(fontName === 'THSarabunNew' ? 16 : 12);
+        let subtitle = `โครงการ: ${filterProject === 'all' ? 'ทั้งหมด' : data.projects.find(p => p.id === filterProject)?.name}`;
+        if (startDate || endDate) {
+            subtitle += ` | วันที่: ${startDate ? new Date(startDate).toLocaleDateString('th-TH') : 'เริ่มต้น'} - ${endDate ? new Date(endDate).toLocaleDateString('th-TH') : 'ปัจจุบัน'}`;
+        }
+        doc.text(subtitle, 105, 30, { align: 'center' });
 
-        reader.readAsDataURL(fontBlob);
-        reader.onloadend = () => {
-            const base64data = reader.result as string;
-            // Remove the data URL prefix (e.g., "data:font/ttf;base64,")
-            const fontBase64 = base64data.split(',')[1];
-
-            doc.addFileToVFS('Sarabun-Regular.ttf', fontBase64);
-            doc.addFont('Sarabun-Regular.ttf', 'Sarabun', 'normal');
-            doc.setFont('Sarabun');
-
-            // Title
-            doc.setFontSize(18);
-            doc.text('รายงานสรุปรายรับ-รายจ่าย', 105, 20, { align: 'center' });
-            
-            // Subtitle (Date Range / Project)
-            doc.setFontSize(12);
-            let subtitle = `โครงการ: ${filterProject === 'all' ? 'ทั้งหมด' : data.projects.find(p => p.id === filterProject)?.name}`;
-            if (startDate || endDate) {
-                subtitle += ` | วันที่: ${startDate ? new Date(startDate).toLocaleDateString('th-TH') : 'เริ่มต้น'} - ${endDate ? new Date(endDate).toLocaleDateString('th-TH') : 'ปัจจุบัน'}`;
+        // Summary Table
+        autoTable(doc, {
+            startY: 40,
+            head: [['รายการ', 'จำนวนเงิน (บาท)']],
+            body: [
+                ['รายรับรวม', formatCurrency(summary.income)],
+                ['รายจ่ายรวม', formatCurrency(summary.expense)],
+                ['คงเหลือสุทธิ', formatCurrency(summary.income - summary.expense)],
+            ],
+            styles: { 
+                font: fontName, 
+                fontSize: fontName === 'THSarabunNew' ? 14 : 10,
+                cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } // Add padding to prevent vowel clipping
+            },
+            headStyles: { 
+                fillColor: [63, 81, 181], 
+                font: fontName, 
+                fontStyle: 'normal', 
+                fontSize: fontName === 'THSarabunNew' ? 14 : 10 
+            },
+            columnStyles: {
+                1: { halign: 'right' }
+            },
+            didParseCell: (data) => {
+                if (data.section === 'head' && data.column.index === 1) {
+                    data.cell.styles.halign = 'right';
+                }
             }
-            doc.text(subtitle, 105, 30, { align: 'center' });
+        });
 
-            // Summary Table
-            doc.autoTable({
-                startY: 40,
-                head: [['รายการ', 'จำนวนเงิน (บาท)']],
-                body: [
-                    ['รายรับรวม', formatCurrency(summary.income)],
-                    ['รายจ่ายรวม', formatCurrency(summary.expense)],
-                    ['คงเหลือสุทธิ', formatCurrency(summary.income - summary.expense)],
-                ],
-                styles: { font: 'Sarabun', fontSize: 10 },
-                headStyles: { fillColor: [63, 81, 181] },
-            });
+        // Transactions Table
+        const tableColumn = ["วันที่", "รายการ", "โครงการ", "รายรับ", "รายจ่าย", "คงเหลือ"];
+        const tableRows: any[] = [];
 
-            // Transactions Table
-            const tableColumn = ["วันที่", "รายการ", "โครงการ", "รายรับ", "รายจ่าย", "คงเหลือ"];
-            const tableRows: any[] = [];
+        processedTransactions.forEach(t => {
+            const project = data.projects.find(p => p.id === t.projectId)?.name || '-';
+            const income = t.type === TransactionType.INCOME || t.type === TransactionType.INVESTMENT ? formatCurrency(t.amount) : '-';
+            const expense = t.type === TransactionType.EXPENSE ? formatCurrency(t.amount) : '-';
+            const balance = formatCurrency(t.balance);
 
-            processedTransactions.forEach(t => {
-                const project = data.projects.find(p => p.id === t.projectId)?.name || '-';
-                const income = t.type === TransactionType.INCOME || t.type === TransactionType.INVESTMENT ? formatCurrency(t.amount) : '-';
-                const expense = t.type === TransactionType.EXPENSE ? formatCurrency(t.amount) : '-';
-                const balance = formatCurrency(t.balance);
+            tableRows.push([
+                new Date(t.date).toLocaleDateString('th-TH'),
+                t.note,
+                project,
+                income,
+                expense,
+                balance
+            ]);
+        });
 
-                tableRows.push([
-                    new Date(t.date).toLocaleDateString('th-TH'),
-                    t.note,
-                    project,
-                    income,
-                    expense,
-                    balance
-                ]);
-            });
+        autoTable(doc, {
+            startY: (doc as any).lastAutoTable.finalY + 10,
+            head: [tableColumn],
+            body: tableRows,
+            styles: { 
+                font: fontName, 
+                fontSize: fontName === 'THSarabunNew' ? 14 : 10,
+                cellPadding: { top: 3, bottom: 3, left: 2, right: 2 } // Add padding to prevent vowel clipping
+            },
+            headStyles: { 
+                fillColor: [63, 81, 181], 
+                font: fontName, 
+                fontStyle: 'normal', 
+                fontSize: fontName === 'THSarabunNew' ? 14 : 10 
+            },
+            columnStyles: {
+                0: { cellWidth: 25 },
+                1: { cellWidth: 'auto' },
+                2: { cellWidth: 30 },
+                3: { cellWidth: 25, halign: 'right' },
+                4: { cellWidth: 25, halign: 'right' },
+                5: { cellWidth: 25, halign: 'right' },
+            },
+            didParseCell: (data) => {
+                if (data.section === 'head' && (data.column.index === 3 || data.column.index === 4 || data.column.index === 5)) {
+                    data.cell.styles.halign = 'right';
+                }
+            }
+        });
 
-            doc.autoTable({
-                startY: (doc as any).lastAutoTable.finalY + 10,
-                head: [tableColumn],
-                body: tableRows,
-                styles: { font: 'Sarabun', fontSize: 9 },
-                headStyles: { fillColor: [63, 81, 181] },
-                columnStyles: {
-                    0: { cellWidth: 25 },
-                    1: { cellWidth: 'auto' },
-                    2: { cellWidth: 30 },
-                    3: { cellWidth: 25, halign: 'right' },
-                    4: { cellWidth: 25, halign: 'right' },
-                    5: { cellWidth: 25, halign: 'right' },
-                },
-            });
+        doc.save('statement_report.pdf');
+        setIsExporting(false);
 
-            doc.save('statement_report.pdf');
-            setIsExporting(false);
-        };
     } catch (error) {
         console.error("Export failed", error);
-        alert("ขออภัย ไม่สามารถสร้าง PDF ได้ในขณะนี้ (ไม่สามารถโหลดฟอนต์ภาษาไทยได้)");
+        alert("ขออภัย ไม่สามารถสร้าง PDF ได้ในขณะนี้ (ไม่สามารถโหลดฟอนต์ภาษาไทยได้ กรุณาตรวจสอบการเชื่อมต่ออินเทอร์เน็ต)");
         setIsExporting(false);
     }
   };
@@ -328,16 +382,33 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 border-b border-slate-200 text-slate-500 text-xs font-bold uppercase tracking-wider">
-                <th className="p-4 w-[120px] cursor-pointer hover:bg-slate-100 transition-colors" onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}>
-                  <div className="flex items-center gap-1">
-                    วันที่ / เวลา
-                    {sortOrder === 'desc' ? <ArrowDown size={14}/> : <ArrowUp size={14}/>}
+                <th className="px-6 py-4 w-[140px] cursor-pointer hover:bg-slate-100 transition-colors group select-none" onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}>
+                  <div className="flex items-center gap-2 text-slate-600 group-hover:text-indigo-600">
+                    <Calendar size={14}/>
+                    วันที่
+                    {sortOrder === 'desc' ? <ArrowDown size={14} className="text-indigo-500"/> : <ArrowUp size={14} className="text-indigo-500"/>}
                   </div>
                 </th>
-                <th className="p-4 min-w-[200px]">รายการ</th>
-                <th className="p-4 text-right w-[140px] text-rose-600 bg-rose-50/30">รายจ่าย (Expense)</th>
-                <th className="p-4 text-right w-[140px] text-emerald-600 bg-emerald-50/30">รายรับ (Income)</th>
-                <th className="p-4 text-right w-[140px] text-slate-700 bg-slate-100/50">คงเหลือ (Balance)</th>
+                <th className="px-6 py-4 min-w-[200px]">
+                  <div className="flex items-center gap-2">
+                    <FileText size={14}/> รายการ
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-right w-[150px] text-rose-600 bg-rose-50/30">
+                  <div className="flex items-center justify-end gap-2">
+                    <TrendingDown size={14}/> รายจ่าย
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-right w-[150px] text-emerald-600 bg-emerald-50/30">
+                  <div className="flex items-center justify-end gap-2">
+                    <TrendingUp size={14}/> รายรับ
+                  </div>
+                </th>
+                <th className="px-6 py-4 text-right w-[150px] text-slate-700 bg-slate-100/50">
+                  <div className="flex items-center justify-end gap-2">
+                    <Wallet size={14}/> คงเหลือ
+                  </div>
+                </th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
@@ -348,67 +419,65 @@ export const Accounts: React.FC<AccountsProps> = ({ data }) => {
                   const isExpense = t.type === TransactionType.EXPENSE;
                   
                   return (
-                    <tr key={t.id} className="hover:bg-slate-50/80 transition-colors group">
+                    <tr key={t.id} className="hover:bg-indigo-50/30 transition-all group">
                       {/* Date */}
-                      <td className="p-4 text-sm text-slate-600 whitespace-nowrap align-top">
-                        <div className="font-medium">{formatDate(t.date)}</div>
-                        <div className="text-[10px] text-slate-400 mt-0.5 font-mono">
-                          {/* Mock time if not available, or just show date */}
-                          {/* Using ID hash or index to simulate time variation if needed, but keeping it simple */}
+                      <td className="px-6 py-4 text-sm text-slate-600 whitespace-nowrap align-top">
+                        <div className="font-bold text-slate-700">{formatDate(t.date)}</div>
+                        <div className="text-[10px] text-slate-400 mt-1 font-medium bg-slate-100 inline-block px-1.5 py-0.5 rounded">
+                           {new Date(t.date).toLocaleDateString('th-TH', { weekday: 'short' })}
                         </div>
                       </td>
 
                       {/* Description */}
-                      <td className="p-4 align-top">
-                        <div className="flex flex-col gap-1">
-                          <div className="text-sm font-bold text-slate-800">
+                      <td className="px-6 py-4 align-top">
+                        <div className="flex flex-col gap-1.5">
+                          <div className="text-sm font-bold text-slate-800 leading-snug">
                              {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
                           </div>
                           <div className="flex flex-wrap items-center gap-2">
-                             <span className="text-[10px] px-1.5 py-0.5 bg-slate-100 text-slate-500 rounded border border-slate-200">
-                               {project?.name || 'Unknown Project'}
+                             <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-slate-100 text-slate-600 rounded-md border border-slate-200 font-medium">
+                               <Building2 size={10}/> {project?.name || 'Unknown'}
                              </span>
-                             {partner && (
+                             {partner ? (
                                <span 
-                                 className="text-[10px] px-1.5 py-0.5 rounded border flex items-center gap-1"
+                                 className="flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-md border font-bold"
                                  style={{ backgroundColor: `${partner.color}10`, color: partner.color, borderColor: `${partner.color}30` }}
                                >
                                  <div className="w-1.5 h-1.5 rounded-full" style={{ backgroundColor: partner.color }}></div>
                                  {partner.name}
                                </span>
-                             )}
-                             {!partner && !isExpense && (
-                               <span className="text-[10px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded border border-indigo-100">
-                                 กองกลาง
+                             ) : !isExpense ? (
+                               <span className="flex items-center gap-1 text-[10px] px-2 py-0.5 bg-indigo-50 text-indigo-600 rounded-md border border-indigo-100 font-bold">
+                                 <Wallet size={10}/> กองกลาง
                                </span>
-                             )}
+                             ) : null}
                           </div>
                         </div>
                       </td>
 
                       {/* Withdrawal (Expense) */}
-                      <td className="p-4 text-right align-top bg-rose-50/10">
+                      <td className="px-6 py-4 text-right align-top bg-rose-50/10">
                         {isExpense && (
-                          <div className="font-bold text-rose-600 flex items-center justify-end gap-1">
+                          <span className="font-bold text-rose-600 text-base tracking-tight">
                              -{formatCurrency(t.amount)}
-                          </div>
+                          </span>
                         )}
                       </td>
 
                       {/* Deposit (Income/Invest) */}
-                      <td className="p-4 text-right align-top bg-emerald-50/10">
+                      <td className="px-6 py-4 text-right align-top bg-emerald-50/10">
                         {!isExpense && (
-                          <div className={`font-bold flex items-center justify-end gap-1 ${t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-emerald-600'}`}>
+                          <span className={`font-bold text-base tracking-tight ${t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-emerald-600'}`}>
                              +{formatCurrency(t.amount)}
-                          </div>
+                          </span>
                         )}
                       </td>
 
                       {/* Balance */}
-                      <td className="p-4 text-right align-top bg-slate-50/30 font-mono">
-                        <div className={`font-bold ${t.balance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
+                      <td className="px-6 py-4 text-right align-top bg-slate-50/30">
+                        <span className={`font-bold font-mono text-base tracking-tight ${t.balance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
                           {formatCurrency(t.balance)}
-                        </div>
+                        </span>
                       </td>
                     </tr>
                   );
