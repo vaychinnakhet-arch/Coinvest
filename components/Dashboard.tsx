@@ -87,7 +87,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
   }, [data]);
 
   const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(val);
+    return new Intl.NumberFormat('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(val);
   };
 
   const CustomTooltip = ({ active, payload, label }: any) => {

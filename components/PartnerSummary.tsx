@@ -19,7 +19,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
 
   // Helper to format currency
   const formatMoney = (amount: number) => 
-    new Intl.NumberFormat('th-TH', { style: 'currency', currency: 'THB', minimumFractionDigits: 0 }).format(amount);
+    new Intl.NumberFormat('th-TH', { minimumFractionDigits: 0, maximumFractionDigits: 2 }).format(amount);
 
   // Helper to format date
   const formatDate = (dateStr: string) => 

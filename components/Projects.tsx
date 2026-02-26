@@ -547,29 +547,29 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       {/* Main Content Area */}
       <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
         {selectedProject ? (
-          <div className="flex flex-col h-full gap-6">
+          <div className="flex flex-col h-full gap-4">
              {/* Project Header & Stats */}
-             <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 shrink-0">
+             <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 shrink-0">
                 {/* Main Info Card */}
-                <Card className="lg:col-span-3 bg-white border-slate-200 relative overflow-hidden p-6 shadow-sm">
+                <Card className="lg:col-span-4 bg-white border-slate-200 relative overflow-hidden p-4 shadow-sm">
                    <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
-                       <FolderKanban size={150} className="text-indigo-500 transform translate-x-10 -translate-y-10"/>
+                       <FolderKanban size={120} className="text-indigo-500 transform translate-x-10 -translate-y-10"/>
                    </div>
-                   <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+                   <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
                       <div>
-                        <div className="flex items-center gap-3 mb-2">
-                           <h2 className="text-3xl font-bold text-slate-800 tracking-tight">{selectedProject.name}</h2>
-                           <span className={`px-2.5 py-0.5 rounded-full text-xs font-bold uppercase tracking-wider ${selectedProject.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
+                        <div className="flex items-center gap-2 mb-1">
+                           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">{selectedProject.name}</h2>
+                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${selectedProject.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
                              {selectedProject.status === 'active' ? 'Active' : 'Planning'}
                            </span>
                         </div>
-                        <div className="flex flex-wrap items-center gap-4 text-sm text-slate-500 font-medium">
-                           <span className="flex items-center gap-1.5 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-100">
-                             <Calendar size={14} className="text-slate-400"/> 
-                             {new Date(selectedProject.startDate).toLocaleDateString('th-TH', { dateStyle: 'long' })}
+                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
+                           <span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
+                             <Calendar size={12} className="text-slate-400"/> 
+                             {new Date(selectedProject.startDate).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
                            </span>
                            {selectedProject.description && (
-                             <span className="flex items-center gap-1.5 px-2">
+                             <span className="flex items-center gap-1 px-1 truncate max-w-[300px]">
                                {selectedProject.description}
                              </span>
                            )}
@@ -578,56 +578,58 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                       
                       <div className="flex items-center gap-3">
                          <div className="text-right hidden md:block mr-2">
-                            <p className="text-xs text-slate-400 font-bold uppercase tracking-wider">คงเหลือสุทธิ</p>
-                            <p className={`text-2xl font-bold ${projectStats.balance >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
+                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">คงเหลือสุทธิ</p>
+                            <p className={`text-xl font-bold ${projectStats.balance >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
                               {projectStats.balance.toLocaleString()}
                             </p>
                          </div>
-                         <Button onClick={() => { resetForm(); setIsFormOpen(true); }} className="shrink-0 shadow-lg shadow-indigo-200 bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl">
-                           <Plus size={20} className="mr-2" /> บันทึกรายการ
+                         <Button onClick={() => { resetForm(); setIsFormOpen(true); }} className="shrink-0 shadow-md shadow-indigo-100 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm">
+                           <Plus size={16} className="mr-1.5" /> บันทึกรายการ
                          </Button>
                       </div>
                    </div>
                 </Card>
 
                 {/* Stat Cards */}
-                <div className="bg-emerald-50/50 p-5 rounded-2xl border border-emerald-100 flex items-center justify-between">
-                   <div>
-                      <p className="text-xs font-bold text-emerald-600 uppercase tracking-wider mb-1">รายรับรวม</p>
-                      <p className="text-2xl font-bold text-emerald-700">+{projectStats.income.toLocaleString()}</p>
+                <div className="lg:col-span-4 grid grid-cols-3 gap-3">
+                   <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 flex items-center justify-between">
+                      <div>
+                         <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-0.5">รายรับรวม</p>
+                         <p className="text-lg font-bold text-emerald-700">+{projectStats.income.toLocaleString()}</p>
+                      </div>
+                      <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
+                         <TrendingUp size={16}/>
+                      </div>
                    </div>
-                   <div className="w-10 h-10 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
-                      <TrendingUp size={20}/>
-                   </div>
-                </div>
 
-                <div className="bg-rose-50/50 p-5 rounded-2xl border border-rose-100 flex items-center justify-between">
-                   <div>
-                      <p className="text-xs font-bold text-rose-600 uppercase tracking-wider mb-1">รายจ่ายรวม</p>
-                      <p className="text-2xl font-bold text-rose-700">-{projectStats.expense.toLocaleString()}</p>
+                   <div className="bg-rose-50/50 p-3 rounded-xl border border-rose-100 flex items-center justify-between">
+                      <div>
+                         <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-0.5">รายจ่ายรวม</p>
+                         <p className="text-lg font-bold text-rose-700">-{projectStats.expense.toLocaleString()}</p>
+                      </div>
+                      <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
+                         <TrendingDown size={16}/>
+                      </div>
                    </div>
-                   <div className="w-10 h-10 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
-                      <TrendingDown size={20}/>
-                   </div>
-                </div>
 
-                <div className="bg-indigo-50/50 p-5 rounded-2xl border border-indigo-100 flex items-center justify-between">
-                   <div>
-                      <p className="text-xs font-bold text-indigo-600 uppercase tracking-wider mb-1">เงินลงทุน</p>
-                      <p className="text-2xl font-bold text-indigo-700">+{projectStats.investment.toLocaleString()}</p>
-                   </div>
-                   <div className="w-10 h-10 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                      <DollarSign size={20}/>
+                   <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 flex items-center justify-between">
+                      <div>
+                         <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-0.5">เงินลงทุน</p>
+                         <p className="text-lg font-bold text-indigo-700">+{projectStats.investment.toLocaleString()}</p>
+                      </div>
+                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
+                         <DollarSign size={16}/>
+                      </div>
                    </div>
                 </div>
              </div>
 
              {/* Content: List & Form */}
-             <div className="flex-1 flex flex-col gap-6 min-h-0">
+             <div className="flex-1 flex flex-col gap-4 min-h-0">
                 
                 {/* Transaction List */}
-                <Card className="flex-1 flex flex-col min-h-[500px] overflow-hidden shadow-sm border-slate-200" title="รายการเคลื่อนไหว (Timeline)">
-                   <div className="flex-1 overflow-y-auto pr-2 custom-scrollbar p-1">
+                <Card className="flex-1 flex flex-col min-h-[400px] overflow-hidden shadow-sm border-slate-200" title="รายการเคลื่อนไหว (Timeline)">
+                   <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar p-1">
                       {Object.keys(groupedTransactions).length === 0 ? (
                         <div className="text-center py-20 text-slate-300 flex flex-col items-center">
                           <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
@@ -652,92 +654,96 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                {/* Timeline Line */}
                                <div className="absolute left-1.5 top-10 bottom-0 w-px bg-slate-100 -z-10"></div>
 
-                               <div className="space-y-3 pl-8">
-                                  {transactions.map(t => {
-                                    const partner = data.partners.find(p => p.id === t.partnerId);
-                                    const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
-                                    
-                                    return (
-                                    <div key={t.id} className={`relative flex flex-col sm:flex-row sm:items-start justify-between p-4 rounded-2xl border transition-all duration-200 group gap-4 ${editingId === t.id ? 'bg-amber-50 border-amber-300 shadow-md ring-1 ring-amber-200' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-md'}`}>
+                                  <div className="space-y-2 pl-6">
+                                     {transactions.map(t => {
+                                       const partner = data.partners.find(p => p.id === t.partnerId);
+                                       const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
                                        
-                                       {/* Connector Dot */}
-                                       <div className="absolute -left-[30px] top-6 w-2 h-2 rounded-full bg-slate-200 border-2 border-white ring-1 ring-slate-100 group-hover:bg-indigo-400 transition-colors"></div>
-
-                                       {/* Left: Icon & Info */}
-                                       <div className="flex items-start gap-4 overflow-hidden flex-1 min-w-0">
-                                          <div className={`w-12 h-12 rounded-2xl flex items-center justify-center shrink-0 shadow-sm mt-0.5 ${getTransactionColor(t.type)}`}>
-                                             {t.type === TransactionType.INCOME ? <Plus size={20} strokeWidth={3}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={20} strokeWidth={3}/> : <ArrowRight size={20} strokeWidth={3} className="-rotate-45"/>}
-                                          </div>
-                                          <div className="min-w-0 flex-1 pt-0.5">
-                                             <div className="mb-1.5 pr-2">
-                                               <p className="font-bold text-slate-800 text-base leading-snug break-words">
-                                                 {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
-                                               </p>
-                                             </div>
-                                             
-                                             <div className="flex flex-wrap items-center gap-2">
-                                                {partner ? (
-                                                   <span 
-                                                     className="flex items-center gap-1.5 text-[11px] font-bold px-2.5 py-1 rounded-lg max-w-[140px] truncate border"
-                                                     style={{ backgroundColor: `${partner.color}10`, color: partner.color, borderColor: `${partner.color}20` }}
-                                                   >
-                                                     <div className="w-1.5 h-1.5 rounded-full" style={{backgroundColor: partner.color}}></div> {partner.name}
-                                                   </span>
-                                                ) : (
-                                                   <span className="flex items-center gap-1.5 text-[11px] text-slate-500 font-bold bg-slate-100 px-2.5 py-1 rounded-lg border border-slate-200">
-                                                     <Wallet size={10}/> กองกลาง
-                                                   </span>
-                                                )}
-
-                                                {isDirectPayment && (
-                                                 <span className="text-[10px] bg-indigo-50 text-indigo-600 px-2 py-1 rounded-lg border border-indigo-100 font-bold whitespace-nowrap">
-                                                   จ่ายตรง
-                                                 </span>
-                                                )}
-
-                                                {/* Receipt Badges */}
-                                                {[t.receiptImage, t.receiptImage2, t.receiptImage3, t.receiptImage4].map((img, idx) => img && (
-                                                  <button 
-                                                    key={idx}
-                                                    onClick={(e) => { e.stopPropagation(); setViewImage(img); }}
-                                                    className="flex items-center gap-1 text-[10px] bg-slate-50 text-slate-600 px-2 py-1 rounded-lg border border-slate-200 font-medium hover:bg-indigo-50 hover:text-indigo-600 hover:border-indigo-200 transition-all"
-                                                  >
-                                                     <ImageIcon size={12} /> สลิป {idx + 1}
-                                                  </button>
-                                                ))}
-                                             </div>
-                                          </div>
-                                       </div>
-                                       
-                                       {/* Right: Amount & Actions */}
-                                       <div className="flex flex-row sm:flex-col items-center sm:items-end justify-between sm:justify-start gap-1 pl-0 sm:pl-4 w-full sm:w-auto shrink-0 border-t sm:border-t-0 border-slate-50 pt-3 sm:pt-0 mt-2 sm:mt-0">
-                                          <span className={`font-bold text-xl tracking-tight ${
-                                            t.type === TransactionType.INCOME ? 'text-emerald-600' : 
-                                            t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
-                                          }`}>
-                                            {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
-                                          </span>
+                                       return (
+                                       <div key={t.id} className={`relative flex flex-row items-center justify-between p-2.5 rounded-xl border transition-all duration-200 group gap-3 ${editingId === t.id ? 'bg-amber-50 border-amber-300 shadow-md ring-1 ring-amber-200' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-sm'}`}>
                                           
-                                          <div className="flex gap-1 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-all transform translate-y-2 sm:group-hover:translate-y-0">
-                                            <button
-                                              onClick={(e) => { e.stopPropagation(); startEditing(t); }}
-                                              className="p-2 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition-colors"
-                                              title="แก้ไข"
-                                            >
-                                              <Pencil size={16} />
-                                            </button>
-                                            <button 
-                                              onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
-                                              className="p-2 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition-colors"
-                                              title="ลบ"
-                                            >
-                                              <Trash2 size={16} />
-                                            </button>
+                                          {/* Connector Dot */}
+                                          <div className="absolute -left-[25px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-200 border border-white ring-1 ring-slate-100 group-hover:bg-indigo-400 transition-colors"></div>
+
+                                          {/* Left: Icon & Info */}
+                                          <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
+                                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm ${getTransactionColor(t.type)}`}>
+                                                {t.type === TransactionType.INCOME ? <Plus size={14} strokeWidth={3}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={14} strokeWidth={3}/> : <ArrowRight size={14} strokeWidth={3} className="-rotate-45"/>}
+                                             </div>
+                                             <div className="min-w-0 flex-1">
+                                                <div className="flex items-center gap-2 mb-0.5">
+                                                  <p className="font-bold text-slate-800 text-sm leading-tight truncate">
+                                                    {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
+                                                  </p>
+                                                  {/* Receipt Previews */}
+                                                  {[t.receiptImage, t.receiptImage2, t.receiptImage3, t.receiptImage4].some(img => img) && (
+                                                    <div className="flex items-center gap-1 ml-2">
+                                                      {[t.receiptImage, t.receiptImage2, t.receiptImage3, t.receiptImage4].map((img, idx) => img && (
+                                                        <div 
+                                                          key={idx}
+                                                          onClick={(e) => { e.stopPropagation(); setViewImage(img); }}
+                                                          className="relative w-8 h-8 rounded-md overflow-hidden border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:scale-110 transition-all shadow-sm bg-slate-100 shrink-0"
+                                                          title={`ดูสลิป ${idx + 1}`}
+                                                        >
+                                                           <img src={img} alt="slip" className="w-full h-full object-cover" />
+                                                        </div>
+                                                      ))}
+                                                    </div>
+                                                  )}
+                                                </div>
+                                                
+                                                <div className="flex flex-wrap items-center gap-1.5">
+                                                   {partner ? (
+                                                      <span 
+                                                        className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md max-w-[100px] truncate border leading-none"
+                                                        style={{ backgroundColor: `${partner.color}10`, color: partner.color, borderColor: `${partner.color}20` }}
+                                                      >
+                                                        <div className="w-1 h-1 rounded-full" style={{backgroundColor: partner.color}}></div> {partner.name}
+                                                      </span>
+                                                   ) : (
+                                                      <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200 leading-none">
+                                                        <Wallet size={8}/> กองกลาง
+                                                      </span>
+                                                   )}
+
+                                                   {isDirectPayment && (
+                                                    <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md border border-indigo-100 font-bold whitespace-nowrap leading-none">
+                                                      จ่ายตรง
+                                                    </span>
+                                                   )}
+                                                </div>
+                                             </div>
+                                          </div>
+                                          
+                                          {/* Right: Amount & Actions */}
+                                          <div className="flex items-center gap-2 shrink-0">
+                                             <span className={`font-bold text-base tracking-tight ${
+                                               t.type === TransactionType.INCOME ? 'text-emerald-600' : 
+                                               t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
+                                             }`}>
+                                               {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
+                                             </span>
+                                             
+                                             <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                                               <button
+                                                 onClick={(e) => { e.stopPropagation(); startEditing(t); }}
+                                                 className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
+                                                 title="แก้ไข"
+                                               >
+                                                 <Pencil size={12} />
+                                               </button>
+                                               <button 
+                                                 onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
+                                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
+                                                 title="ลบ"
+                                               >
+                                                 <Trash2 size={12} />
+                                               </button>
+                                             </div>
                                           </div>
                                        </div>
-                                    </div>
-                                  )})}
-                               </div>
+                                     )})}
+                                  </div>
                             </div>
                           ))}
                         </div>

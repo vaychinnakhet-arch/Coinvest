@@ -8,10 +8,10 @@ interface CardProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export const Card: React.FC<CardProps> = ({ children, className = "", title, action, ...props }) => (
-  <div className={`bg-white rounded-3xl shadow-sm border border-slate-100 p-6 md:p-8 ${className}`} {...props}>
+  <div className={`bg-white rounded-2xl shadow-sm border border-slate-100 p-5 ${className}`} {...props}>
     {(title || action) && (
-      <div className="flex justify-between items-center mb-6">
-        {title && <h3 className="text-xl font-bold text-slate-800 tracking-tight">{title}</h3>}
+      <div className="flex justify-between items-center mb-4">
+        {title && <h3 className="text-lg font-bold text-slate-800 tracking-tight">{title}</h3>}
         {action && <div>{action}</div>}
       </div>
     )}
