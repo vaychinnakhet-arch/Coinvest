@@ -68,7 +68,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
           const current = map.get(t.partnerId) || 0;
           map.set(t.partnerId, current + t.amount);
         } else if (t.type === TransactionType.WITHDRAWAL) {
-          // เบิกเงินออก: ลดยอดลงทุน
+          // เบิกเงินออก (WITHDRAWAL type): ลดยอดลงทุน
+          const current = map.get(t.partnerId) || 0;
+          map.set(t.partnerId, current - t.amount);
+        } else if (t.type === TransactionType.INCOME) {
+          // รายรับที่ผูกกับหุ้นส่วน = จ่ายเงินออกให้หุ้นส่วน (profit distribution): ลดยอดลงทุน
           const current = map.get(t.partnerId) || 0;
           map.set(t.partnerId, current - t.amount);
         }
