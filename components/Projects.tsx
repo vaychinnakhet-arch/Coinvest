@@ -17,6 +17,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Mobile toggle
   const [viewImage, setViewImage] = useState<string | null>(null); // For Image Modal
   const [isFormOpen, setIsFormOpen] = useState(false); // For Transaction Form Modal
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null); // For Delete Confirmation
   
   // New Project State
   const [newProjectName, setNewProjectName] = useState('');
@@ -270,6 +271,31 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       }
     }
 
+    // === WITHDRAWAL: เบิกเงินออกจากยอดหุ้นส่วน ===
+    if (transType === TransactionType.WITHDRAWAL) {
+      if (!transPartner) {
+        alert('กรุณาเลือกหุ้นส่วนที่ต้องการเบิกเงินออก');
+        return;
+      }
+      const partnerName = data.partners.find(p => p.id === transPartner)?.name || '';
+      onAddTransaction({
+        projectId: selectedProjectId,
+        type: TransactionType.WITHDRAWAL,
+        amount: totalAmount,
+        date: transDate,
+        note: transNote || `เบิกเงินออก - ${partnerName}`,
+        partnerId: transPartner,
+        receiptImage: transImage,
+        receiptImage2: transImage2,
+        receiptImage3: transImage3,
+        receiptImage4: transImage4
+      });
+      setEditingId(null);
+      resetForm();
+      setIsFormOpen(false);
+      return;
+    }
+
     let sourcesToProcess: Record<string, number> = {};
 
     if (isSplitMode) {
@@ -415,6 +441,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       case TransactionType.INCOME: return 'text-emerald-600 bg-emerald-50';
       case TransactionType.EXPENSE: return 'text-rose-600 bg-rose-50';
       case TransactionType.INVESTMENT: return 'text-indigo-600 bg-indigo-50';
+      case TransactionType.WITHDRAWAL: return 'text-amber-600 bg-amber-50';
       default: return 'text-slate-600 bg-slate-50';
     }
   };
@@ -435,6 +462,34 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   return (
     <>
     <div className="flex flex-col gap-6 h-auto min-h-screen relative pb-10">
+
+      {/* Delete Confirmation Modal */}
+      {deleteConfirmId && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200">
+            <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
+              <Trash2 size={28} className="text-rose-600" />
+            </div>
+            <h3 className="text-lg font-bold text-slate-800 text-center mb-1">ยืนยันการลบรายการ</h3>
+            <p className="text-sm text-slate-500 text-center mb-6">รายการนี้จะถูกลบถาวรและไม่สามารถกู้คืนได้</p>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setDeleteConfirmId(null)}
+                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
+              >
+                ยกเลิก
+              </button>
+              <button
+                onClick={() => { onDeleteTransaction(deleteConfirmId); setDeleteConfirmId(null); }}
+                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors shadow-md shadow-rose-200"
+              >
+                ลบรายการ
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Image Modal */}
       {viewImage && (
         <div 
@@ -719,9 +774,10 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                           <div className="flex items-center gap-2 shrink-0">
                                              <span className={`font-bold text-base tracking-tight ${
                                                t.type === TransactionType.INCOME ? 'text-emerald-600' : 
-                                               t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
+                                               t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 
+                                               t.type === TransactionType.WITHDRAWAL ? 'text-amber-600' : 'text-rose-600'
                                              }`}>
-                                               {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
+                                               {(t.type === TransactionType.EXPENSE || t.type === TransactionType.WITHDRAWAL) ? '-' : '+'}{t.amount.toLocaleString()}
                                              </span>
                                              
                                              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -780,9 +836,10 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                {/* Transaction Type Tabs */}
                <div className="flex gap-2 p-1.5 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar">
                  {[
-                   { val: TransactionType.EXPENSE, label: 'รายจ่าย' },
-                   { val: TransactionType.INCOME, label: 'รายรับ' },
-                   { val: TransactionType.INVESTMENT, label: 'ลงทุน' },
+                   { val: TransactionType.EXPENSE, label: 'รายจ่าย', color: '' },
+                   { val: TransactionType.INCOME, label: 'รายรับ', color: '' },
+                   { val: TransactionType.INVESTMENT, label: 'ลงทุน', color: '' },
+                   { val: TransactionType.WITHDRAWAL, label: '↑ เบิกเงิน', color: 'text-amber-600' },
                  ].map(type => (
                    <button
                      key={type.val}
@@ -792,7 +849,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                         if (type.val !== TransactionType.EXPENSE) setIsSplitMode(false);
                      }}
                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                       transType === type.val ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-500 hover:text-slate-700'
+                       transType === type.val 
+                         ? (type.val === TransactionType.WITHDRAWAL ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-indigo-600 shadow-sm') 
+                         : `text-slate-500 hover:text-slate-700 ${type.color}`
                      }`}
                    >
                      {type.label}

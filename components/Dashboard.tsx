@@ -43,6 +43,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
       } else if (t.type === TransactionType.INCOME) {
         totalIncome += t.amount;
         centralPool += t.amount;
+      } else if (t.type === TransactionType.WITHDRAWAL) {
+        // เบิกเงินออก: ลดกองกลาง
+        centralPool -= t.amount;
       }
     });
 
@@ -56,9 +59,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
       if (isInternalTransfer(t.note)) return;
 
       if (t.partnerId) {
-        if (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE) {
+        if (t.type === TransactionType.INVESTMENT) {
+          // ลงทุน: เพิ่มยอด
           const current = map.get(t.partnerId) || 0;
           map.set(t.partnerId, current + t.amount);
+        } else if (t.type === TransactionType.EXPENSE) {
+          // จ่ายตรงโดยหุ้นส่วน: นับเป็น contribution เพิ่มยอด
+          const current = map.get(t.partnerId) || 0;
+          map.set(t.partnerId, current + t.amount);
+        } else if (t.type === TransactionType.WITHDRAWAL) {
+          // เบิกเงินออก: ลดยอดลงทุน
+          const current = map.get(t.partnerId) || 0;
+          map.set(t.partnerId, current - t.amount);
         }
       }
     });

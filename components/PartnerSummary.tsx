@@ -94,6 +94,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
     if (isInternalTransfer(t.note)) return sum;
     if (t.type === TransactionType.INVESTMENT) return sum + t.amount;
     if (t.type === TransactionType.EXPENSE && t.partnerId) return sum + t.amount;
+    if (t.type === TransactionType.WITHDRAWAL && t.partnerId) return sum - t.amount; // เบิกเงินออก: ลดยอดรวม
     return sum;
   }, 0);
 
@@ -105,10 +106,10 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
       : data.partners.filter(p => p.id === filterPartner);
 
     return targetPartners.map(partner => {
-      // Filter Transactions for this partner
+      // Filter Transactions for this partner (INVESTMENT, EXPENSE จ่ายตรง, WITHDRAWAL)
       let investments = data.transactions.filter(t => 
         t.partnerId === partner.id && 
-        (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE) &&
+        (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE || t.type === TransactionType.WITHDRAWAL) &&
         !isInternalTransfer(t.note)
       );
       
@@ -124,12 +125,19 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
 
       investments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Newest first
       
-      const totalInvested = investments.reduce((sum, t) => sum + t.amount, 0);
+      // WITHDRAWAL ลดยอด, อื่นๆ เพิ่มยอด
+      const totalInvested = investments.reduce((sum, t) => {
+        if (t.type === TransactionType.WITHDRAWAL) return sum - t.amount;
+        return sum + t.amount;
+      }, 0);
       
       // Ownership based on GLOBAL total
       const globalPartnerInvested = data.transactions
-        .filter(t => t.partnerId === partner.id && (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE) && !isInternalTransfer(t.note))
-        .reduce((sum, t) => sum + t.amount, 0);
+        .filter(t => t.partnerId === partner.id && (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE || t.type === TransactionType.WITHDRAWAL) && !isInternalTransfer(t.note))
+        .reduce((sum, t) => {
+          if (t.type === TransactionType.WITHDRAWAL) return sum - t.amount;
+          return sum + t.amount;
+        }, 0);
       
       const sharePercent = globalTotalInvestment > 0 ? (globalPartnerInvested / globalTotalInvestment) * 100 : 0;
 
@@ -400,8 +408,11 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                            return projectA.localeCompare(projectB);
                         })
                         .map(([pid, invs]) => {
-                         const project = data.projects.find(p => p.id === pid);
-                         const projectTotal = (invs as Transaction[]).reduce((s, i) => s + i.amount, 0);
+                          const project = data.projects.find(p => p.id === pid);
+                          const projectTotal = (invs as Transaction[]).reduce((s, i) => {
+                            if (i.type === TransactionType.WITHDRAWAL) return s - i.amount;
+                            return s + i.amount;
+                          }, 0);
                          const collapseKey = `${partner.id}-${pid}`;
                          const isCollapsed = collapsedItems[collapseKey];
 
@@ -438,10 +449,21 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                                                      จ่ายตรง
                                                   </span>
                                                )}
+                                               {inv.type === TransactionType.WITHDRAWAL && (
+                                                  <span className="inline-block ml-2 px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[10px] rounded border border-rose-200 whitespace-nowrap font-bold">
+                                                     ↑ เบิกเงินออก
+                                                  </span>
+                                               )}
                                             </div>
                                          </div>
-                                         <div className={`font-bold shrink-0 pt-0.5 ${inv.type === TransactionType.EXPENSE ? 'text-rose-600' : 'text-indigo-600'}`}>
-                                            {inv.type === TransactionType.EXPENSE ? '' : '+'}{formatMoney(inv.amount)}
+                                         <div className={`font-bold shrink-0 pt-0.5 ${
+                                            inv.type === TransactionType.WITHDRAWAL 
+                                              ? 'text-rose-600' 
+                                              : inv.type === TransactionType.EXPENSE 
+                                                ? 'text-rose-500' 
+                                                : 'text-indigo-600'
+                                         }`}>
+                                            {inv.type === TransactionType.WITHDRAWAL ? '-' : '+'}{formatMoney(inv.amount)}
                                          </div>
                                       </div>
                                    ))}

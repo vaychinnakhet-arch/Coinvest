@@ -54,7 +54,7 @@ const App: React.FC = () => {
   // --- Actions (Optimistic UI: Update Local -> Sync Remote) ---
 
   const handleAddProject = async (project: Omit<Project, 'id'>) => {
-    const newProject: Project = { ...project, id: Math.random().toString(36).substr(2, 9) };
+    const newProject: Project = { ...project, id: crypto.randomUUID() };
     
     // 1. Optimistic Update (Show immediately)
     setData(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
@@ -70,7 +70,7 @@ const App: React.FC = () => {
   };
 
   const handleAddTransaction = async (transaction: Omit<Transaction, 'id'>) => {
-    const newTransaction: Transaction = { ...transaction, id: Math.random().toString(36).substr(2, 9) };
+    const newTransaction: Transaction = { ...transaction, id: crypto.randomUUID() };
     
     // 1. Optimistic Update
     setData(prev => ({ ...prev, transactions: [...prev.transactions, newTransaction] }));
@@ -117,7 +117,7 @@ const App: React.FC = () => {
   };
 
   const handleAddPartner = async (partner: Omit<Partner, 'id'>) => {
-    const newPartner: Partner = { ...partner, id: Math.random().toString(36).substr(2, 9) };
+    const newPartner: Partner = { ...partner, id: crypto.randomUUID() };
 
     // 1. Optimistic Update
     setData(prev => ({ ...prev, partners: [...prev.partners, newPartner] }));

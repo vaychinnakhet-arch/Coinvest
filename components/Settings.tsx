@@ -108,24 +108,27 @@ function handleRequest(e) {
          s = ss.insertSheet(name);
          if (name === 'Partners') s.appendRow(['id', 'name', 'avatar', 'color']);
          if (name === 'Projects') s.appendRow(['id', 'name', 'description', 'status', 'startDate']);
-         if (name === 'Transactions') s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage']);
+         if (name === 'Transactions') s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage', 'receiptImage2', 'receiptImage3', 'receiptImage4']);
        } else {
-         // Auto-fix: Check if 'receiptImage' header exists for Transactions
+         // Auto-fix: Check if receiptImage2/3/4 headers exist for Transactions
          if (name === 'Transactions') {
            var lastCol = s.getLastColumn();
            if (lastCol > 0) {
              var headers = s.getRange(1, 1, 1, lastCol).getValues()[0];
-             var hasImg = false;
-             for(var i=0; i<headers.length; i++) {
-               if(headers[i] === 'receiptImage') { hasImg = true; break; }
-             }
-             // If missing, add it to the next column
-             if (!hasImg) {
-               s.getRange(1, lastCol + 1).setValue('receiptImage');
-             }
+             var imgHeaders = ['receiptImage', 'receiptImage2', 'receiptImage3', 'receiptImage4'];
+             imgHeaders.forEach(function(h) {
+               var found = false;
+               for(var i=0; i<headers.length; i++) {
+                 if(headers[i] === h) { found = true; break; }
+               }
+               if (!found) {
+                 var newLastCol = s.getLastColumn();
+                 s.getRange(1, newLastCol + 1).setValue(h);
+               }
+             });
            } else {
               // Sheet exists but empty
-              s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage']);
+              s.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage', 'receiptImage2', 'receiptImage3', 'receiptImage4']);
            }
          }
        }
@@ -141,7 +144,7 @@ function handleRequest(e) {
        // CLEAR ALL DATA
        var sP = ss.getSheetByName('Partners'); sP.clearContents(); sP.appendRow(['id', 'name', 'avatar', 'color']);
        var sPr = ss.getSheetByName('Projects'); sPr.clearContents(); sPr.appendRow(['id', 'name', 'description', 'status', 'startDate']);
-       var sTx = ss.getSheetByName('Transactions'); sTx.clearContents(); sTx.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage']);
+       var sTx = ss.getSheetByName('Transactions'); sTx.clearContents(); sTx.appendRow(['id', 'projectId', 'partnerId', 'type', 'amount', 'date', 'note', 'receiptImage', 'receiptImage2', 'receiptImage3', 'receiptImage4']);
        
        // INSERT NEW DATA
        if (data.partners && data.partners.length) {
@@ -153,14 +156,14 @@ function handleRequest(e) {
          sPr.getRange(2, 1, rows.length, 5).setValues(rows);
        }
        if (data.transactions && data.transactions.length) {
-         var rows = data.transactions.map(t => [t.id, t.projectId, t.partnerId || '', t.type, t.amount, t.date, t.note || '', t.receiptImage || '']);
-         sTx.getRange(2, 1, rows.length, 8).setValues(rows);
+         var rows = data.transactions.map(t => [t.id, t.projectId, t.partnerId || '', t.type, t.amount, t.date, t.note || '', t.receiptImage || '', t.receiptImage2 || '', t.receiptImage3 || '', t.receiptImage4 || '']);
+         sTx.getRange(2, 1, rows.length, 11).setValues(rows);
        }
        output = { status: 'success' };
     } 
     else if (action === 'addTransaction') {
        var s = ss.getSheetByName('Transactions');
-       s.appendRow([data.id, data.projectId, data.partnerId || '', data.type, data.amount, data.date, data.note || '', data.receiptImage || '']);
+       s.appendRow([data.id, data.projectId, data.partnerId || '', data.type, data.amount, data.date, data.note || '', data.receiptImage || '', data.receiptImage2 || '', data.receiptImage3 || '', data.receiptImage4 || '']);
        output = { status: 'success' };
     }
     else if (action === 'updateTransaction') {
@@ -169,17 +172,19 @@ function handleRequest(e) {
        output = { status: 'not_found' };
        for (var i = 1; i < values.length; i++) {
          if (String(values[i][0]) === String(data.id)) {
-           // Update Row (1-indexed) including image
-           s.getRange(i + 1, 1, 1, 8).setValues([[
-             data.id, 
-             data.projectId, 
-             data.partnerId || '', 
-             data.type, 
-             data.amount, 
-             data.date, 
-             data.note || '',
-             data.receiptImage || ''
-           ]]);
+           s.getRange(i + 1, 1, 1, 11).setValues([[
+              data.id, 
+              data.projectId, 
+              data.partnerId || '', 
+              data.type, 
+              data.amount, 
+              data.date, 
+              data.note || '',
+              data.receiptImage || '',
+              data.receiptImage2 || '',
+              data.receiptImage3 || '',
+              data.receiptImage4 || ''
+            ]]);
            output = { status: 'success' };
            break;
          }
@@ -266,7 +271,7 @@ function getSheetData(sheet) {
   };
 
   const handleExport = () => {
-    const jsonString = `data:text/json;chatset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
+    const jsonString = `data:text/json;charset=utf-8,${encodeURIComponent(JSON.stringify(data, null, 2))}`;
     const link = document.createElement("a");
     link.href = jsonString;
     link.download = `CoInvest_Backup_${new Date().toISOString().split('T')[0]}.json`;
@@ -465,16 +470,19 @@ function handleRequest(e) {
        for (var i = 1; i < values.length; i++) {
          if (String(values[i][0]) === String(data.id)) {
            // Update Row (1-indexed) including image
-           s.getRange(i + 1, 1, 1, 8).setValues([[
-             data.id, 
-             data.projectId, 
-             data.partnerId || '', 
-             data.type, 
-             data.amount, 
-             data.date, 
-             data.note || '',
-             data.receiptImage || ''
-           ]]);
+           s.getRange(i + 1, 1, 1, 11).setValues([[
+              data.id, 
+              data.projectId, 
+              data.partnerId || '', 
+              data.type, 
+              data.amount, 
+              data.date, 
+              data.note || '',
+              data.receiptImage || '',
+              data.receiptImage2 || '',
+              data.receiptImage3 || '',
+              data.receiptImage4 || ''
+            ]]);
            output = { status: 'success' };
            break;
          }
