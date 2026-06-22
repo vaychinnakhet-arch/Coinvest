@@ -271,31 +271,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       }
     }
 
-    // === WITHDRAWAL: เบิกเงินออกจากยอดหุ้นส่วน ===
-    if (transType === TransactionType.WITHDRAWAL) {
-      if (!transPartner) {
-        alert('กรุณาเลือกหุ้นส่วนที่ต้องการเบิกเงินออก');
-        return;
-      }
-      const partnerName = data.partners.find(p => p.id === transPartner)?.name || '';
-      onAddTransaction({
-        projectId: selectedProjectId,
-        type: TransactionType.WITHDRAWAL,
-        amount: totalAmount,
-        date: transDate,
-        note: transNote || `เบิกเงินออก - ${partnerName}`,
-        partnerId: transPartner,
-        receiptImage: transImage,
-        receiptImage2: transImage2,
-        receiptImage3: transImage3,
-        receiptImage4: transImage4
-      });
-      setEditingId(null);
-      resetForm();
-      setIsFormOpen(false);
-      return;
-    }
-
     let sourcesToProcess: Record<string, number> = {};
 
     if (isSplitMode) {
@@ -441,7 +416,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       case TransactionType.INCOME: return 'text-emerald-600 bg-emerald-50';
       case TransactionType.EXPENSE: return 'text-rose-600 bg-rose-50';
       case TransactionType.INVESTMENT: return 'text-indigo-600 bg-indigo-50';
-      case TransactionType.WITHDRAWAL: return 'text-amber-600 bg-amber-50';
       default: return 'text-slate-600 bg-slate-50';
     }
   };
@@ -774,10 +748,9 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                                           <div className="flex items-center gap-2 shrink-0">
                                              <span className={`font-bold text-base tracking-tight ${
                                                t.type === TransactionType.INCOME ? 'text-emerald-600' : 
-                                               t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 
-                                               t.type === TransactionType.WITHDRAWAL ? 'text-amber-600' : 'text-rose-600'
+                                               t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
                                              }`}>
-                                               {(t.type === TransactionType.EXPENSE || t.type === TransactionType.WITHDRAWAL) ? '-' : '+'}{t.amount.toLocaleString()}
+                                               {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
                                              </span>
                                              
                                              <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -839,7 +812,6 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                    { val: TransactionType.EXPENSE, label: 'รายจ่าย', color: '' },
                    { val: TransactionType.INCOME, label: 'รายรับ', color: '' },
                    { val: TransactionType.INVESTMENT, label: 'ลงทุน', color: '' },
-                   { val: TransactionType.WITHDRAWAL, label: '↑ เบิกเงิน', color: 'text-amber-600' },
                  ].map(type => (
                    <button
                      key={type.val}
@@ -850,8 +822,8 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
                      }}
                      className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
                        transType === type.val 
-                         ? (type.val === TransactionType.WITHDRAWAL ? 'bg-amber-500 text-white shadow-sm' : 'bg-white text-indigo-600 shadow-sm') 
-                         : `text-slate-500 hover:text-slate-700 ${type.color}`
+                         ? 'bg-white text-indigo-600 shadow-sm' 
+                         : 'text-slate-500 hover:text-slate-700'
                      }`}
                    >
                      {type.label}

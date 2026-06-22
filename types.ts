@@ -9,8 +9,8 @@ export enum TransactionType {
   INVESTMENT = 'INVESTMENT', // Money put IN by partner
   INCOME = 'INCOME',         // Revenue from project
   EXPENSE = 'EXPENSE',       // Cost of project
-  WITHDRAWAL = 'WITHDRAWAL', // Money taken OUT by partner
 }
+
 
 export interface Project {
   id: string;

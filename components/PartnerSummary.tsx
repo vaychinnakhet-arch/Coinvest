@@ -94,7 +94,6 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
     if (isInternalTransfer(t.note)) return sum;
     if (t.type === TransactionType.INVESTMENT) return sum + t.amount;
     if (t.type === TransactionType.EXPENSE && t.partnerId) return sum + t.amount;
-    if (t.type === TransactionType.WITHDRAWAL && t.partnerId) return sum - t.amount;
     if (t.type === TransactionType.INCOME && t.partnerId) return sum - t.amount; // จ่ายเงินให้หุ้นส่วน: ลดยอดรวม
     return sum;
   }, 0);
@@ -107,10 +106,10 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
       : data.partners.filter(p => p.id === filterPartner);
 
     return targetPartners.map(partner => {
-      // Filter Transactions for this partner (INVESTMENT, EXPENSE จ่ายตรง, WITHDRAWAL, INCOME จ่ายให้หุ้นส่วน)
+      // Filter Transactions for this partner (INVESTMENT, EXPENSE จ่ายตรง, INCOME จ่ายให้หุ้นส่วน)
       let investments = data.transactions.filter(t => 
         t.partnerId === partner.id && 
-        (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE || t.type === TransactionType.WITHDRAWAL || t.type === TransactionType.INCOME) &&
+        (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE || t.type === TransactionType.INCOME) &&
         !isInternalTransfer(t.note)
       );
       
@@ -126,17 +125,17 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
 
       investments.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()); // Newest first
       
-      // WITHDRAWAL/INCOME ลดยอด, อื่นๆ เพิ่มยอด
+      // INCOME ลดยอด, อื่นๆ เพิ่มยอด
       const totalInvested = investments.reduce((sum, t) => {
-        if (t.type === TransactionType.WITHDRAWAL || t.type === TransactionType.INCOME) return sum - t.amount;
+        if (t.type === TransactionType.INCOME) return sum - t.amount;
         return sum + t.amount;
       }, 0);
       
       // Ownership based on GLOBAL total
       const globalPartnerInvested = data.transactions
-        .filter(t => t.partnerId === partner.id && (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE || t.type === TransactionType.WITHDRAWAL || t.type === TransactionType.INCOME) && !isInternalTransfer(t.note))
+        .filter(t => t.partnerId === partner.id && (t.type === TransactionType.INVESTMENT || t.type === TransactionType.EXPENSE || t.type === TransactionType.INCOME) && !isInternalTransfer(t.note))
         .reduce((sum, t) => {
-          if (t.type === TransactionType.WITHDRAWAL || t.type === TransactionType.INCOME) return sum - t.amount;
+          if (t.type === TransactionType.INCOME) return sum - t.amount;
           return sum + t.amount;
         }, 0);
       
@@ -411,7 +410,6 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                         .map(([pid, invs]) => {
                           const project = data.projects.find(p => p.id === pid);
                           const projectTotal = (invs as Transaction[]).reduce((s, i) => {
-                            if (i.type === TransactionType.WITHDRAWAL) return s - i.amount;
                             return s + i.amount;
                           }, 0);
                          const collapseKey = `${partner.id}-${pid}`;
@@ -427,6 +425,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                                  <div className="flex items-center gap-2">
                                     <div className={`w-1.5 h-1.5 rounded-full transition-colors ${isCollapsed ? 'bg-slate-300' : 'bg-indigo-500'}`}></div>
                                     <h4 className="font-bold text-slate-700 text-sm truncate max-w-[150px] sm:max-w-[200px]">{project?.name || 'Unknown Project'}</h4>
+                                 </div>
                                  <div className="flex items-center gap-2">
                                     <span className="font-bold text-slate-500 text-sm">{formatMoney(projectTotal)}</span>
                                     {isCollapsed ? <ChevronRight size={16} className="text-slate-400"/> : <ChevronDown size={16} className="text-slate-400"/>}
@@ -447,16 +446,6 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                                                {inv.type === TransactionType.EXPENSE && (
                                                   <span className="inline-block ml-2 px-1.5 py-0.5 bg-slate-100 text-slate-500 text-[10px] rounded border border-slate-200 whitespace-nowrap">
                                                      จ่ายตรง
-                                                  </span>
-                                               )}
-                                               {inv.type === TransactionType.WITHDRAWAL && (
-                                                  <span className="inline-block ml-2 px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[10px] rounded border border-rose-200 whitespace-nowrap font-bold">
-                                                     ↑ เบิกเงินออก
-                                                  </span>
-                                               )}
-                                               {inv.type === TransactionType.INCOME && (
-                                                  <span className="inline-block ml-2 px-1.5 py-0.5 bg-rose-100 text-rose-600 text-[10px] rounded border border-rose-200 whitespace-nowrap font-bold">
-                                                     ↓ รับเงิน
                                                   </span>
                                                )}
                                             </div>

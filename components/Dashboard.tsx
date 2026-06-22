@@ -42,10 +42,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
         }
       } else if (t.type === TransactionType.INCOME) {
         totalIncome += t.amount;
-        centralPool += t.amount;
-      } else if (t.type === TransactionType.WITHDRAWAL) {
-        // เบิกเงินออก: ลดกองกลาง
-        centralPool -= t.amount;
+        if (!t.partnerId) {
+          centralPool += t.amount;
+        }
       }
     });
 
@@ -67,10 +66,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
           // จ่ายตรงโดยหุ้นส่วน: นับเป็น contribution เพิ่มยอด
           const current = map.get(t.partnerId) || 0;
           map.set(t.partnerId, current + t.amount);
-        } else if (t.type === TransactionType.WITHDRAWAL) {
-          // เบิกเงินออก (WITHDRAWAL type): ลดยอดลงทุน
-          const current = map.get(t.partnerId) || 0;
-          map.set(t.partnerId, current - t.amount);
         } else if (t.type === TransactionType.INCOME) {
           // รายรับที่ผูกกับหุ้นส่วน = จ่ายเงินออกให้หุ้นส่วน (profit distribution): ลดยอดลงทุน
           const current = map.get(t.partnerId) || 0;
