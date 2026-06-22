@@ -2,7 +2,7 @@ import React, { useMemo } from 'react';
 import { AppState, TransactionType } from '../types';
 import { Card, Badge } from './ui/Components';
 import { PieChart, Pie, Cell, ResponsiveContainer, BarChart, Bar, XAxis, YAxis, Tooltip as RechartsTooltip, CartesianGrid, ReferenceLine } from 'recharts';
-import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Activity } from 'lucide-react';
+import { DollarSign, TrendingUp, TrendingDown, Wallet, ArrowUpRight, ArrowDownRight, Activity, ArrowRightLeft, ArrowDownLeft, Building2 } from 'lucide-react';
 
 interface DashboardProps {
   data: AppState;
@@ -95,6 +95,50 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
         profit: income - expense
       };
     });
+  }, [data]);
+
+  const interProjectDebts = useMemo(() => {
+    const debts: { creditor: string; debtor: string; amount: number }[] = [];
+    
+    data.transactions.forEach(t => {
+      if (t.type === TransactionType.EXPENSE && isInternalTransfer(t.note)) {
+         const match = t.note.match(/(?:นำเงินไปหมุนให้โครงการ:|เงินถูกยืมไปโครงการ:|โอนไปโครงการ:)\s*([^\)-]+)/);
+         if (match && match[1]) {
+            const debtorName = match[1].trim();
+            const creditorProj = data.projects.find(p => p.id === t.projectId);
+            if (creditorProj && creditorProj.name !== debtorName) {
+                const existing = debts.find(d => d.creditor === creditorProj.name && d.debtor === debtorName);
+                if (existing) {
+                    existing.amount += t.amount;
+                } else {
+                    debts.push({ creditor: creditorProj.name, debtor: debtorName, amount: t.amount });
+                }
+            }
+         }
+      }
+    });
+    
+    const netDebts: { creditor: string; debtor: string; amount: number }[] = [];
+    debts.forEach(d => {
+        const inverse = netDebts.find(n => n.creditor === d.debtor && n.debtor === d.creditor);
+        if (inverse) {
+            inverse.amount -= d.amount;
+            if (inverse.amount < 0) {
+                const newCred = inverse.debtor;
+                const newDebtor = inverse.creditor;
+                const newAmount = Math.abs(inverse.amount);
+                inverse.creditor = newCred;
+                inverse.debtor = newDebtor;
+                inverse.amount = newAmount;
+            } else if (inverse.amount === 0) {
+                netDebts.splice(netDebts.indexOf(inverse), 1);
+            }
+        } else {
+            netDebts.push({ ...d });
+        }
+    });
+
+    return netDebts.filter(d => d.amount > 0);
   }, [data]);
 
   const formatCurrency = (val: number) => {
@@ -430,6 +474,83 @@ export const Dashboard: React.FC<DashboardProps> = ({ data }) => {
           </table>
         </div>
       </div>
+
+      {/* 5. Project Breakdown Table */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="p-7 border-b border-slate-50 flex items-center gap-3">
+           <div className="w-10 h-10 rounded-xl bg-indigo-50 flex items-center justify-center text-indigo-500">
+             <Building2 size={20} />
+           </div>
+           <h3 className="text-xl font-bold text-slate-800">สรุปผลประกอบการรายโครงการ</h3>
+        </div>
+        <div className="overflow-x-auto">
+          <table className="w-full text-left border-collapse">
+            <thead className="bg-slate-50/50">
+              <tr className="text-slate-500 text-sm uppercase tracking-wider">
+                <th className="p-6 font-semibold pl-8">ชื่อโครงการ</th>
+                <th className="p-6 font-semibold text-right text-emerald-600">รายรับ</th>
+                <th className="p-6 font-semibold text-right text-rose-500">รายจ่าย</th>
+                <th className="p-6 font-semibold text-right text-indigo-600 pr-8">กำไร/ขาดทุน</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-50">
+              {projectPerformance.map((p, idx) => (
+                <tr key={idx} className="hover:bg-slate-50/50 transition-colors">
+                  <td className="p-6 pl-8 font-bold text-slate-700 text-base">{p.name}</td>
+                  <td className="p-6 text-right font-medium text-emerald-600">{formatCurrency(p.income)}</td>
+                  <td className="p-6 text-right font-medium text-rose-500">{formatCurrency(p.expense)}</td>
+                  <td className={`p-6 text-right font-extrabold pr-8 ${p.profit >= 0 ? 'text-indigo-600' : 'text-rose-600'}`}>
+                    {p.profit > 0 ? '+' : ''}{formatCurrency(p.profit)}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      {/* 6. Inter-Project Debts */}
+      <div className="bg-white rounded-3xl border border-slate-100 shadow-sm overflow-hidden">
+        <div className="p-7 border-b border-slate-50 flex items-center gap-3">
+           <div className="w-10 h-10 rounded-xl bg-amber-50 flex items-center justify-center text-amber-500">
+             <ArrowRightLeft size={20} />
+           </div>
+           <h3 className="text-xl font-bold text-slate-800">ยอดหนี้สินข้ามโครงการ (โอนยืมระหว่างกัน)</h3>
+        </div>
+        
+        {interProjectDebts.length > 0 ? (
+          <div className="p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+             {interProjectDebts.map((debt, idx) => (
+               <div key={idx} className="p-5 rounded-2xl bg-slate-50 border border-slate-100 flex flex-col justify-between group hover:border-indigo-200 hover:shadow-md transition-all">
+                  <div className="flex items-center justify-between mb-4">
+                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Creditor</span>
+                     <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Debtor</span>
+                  </div>
+                  <div className="flex items-center justify-between mb-4 relative">
+                     <div className="font-bold text-slate-700 max-w-[40%] truncate" title={debt.creditor}>{debt.creditor}</div>
+                     <div className="flex-1 px-4 relative flex items-center justify-center">
+                        <div className="h-[2px] w-full bg-indigo-100 absolute"></div>
+                        <div className="w-6 h-6 rounded-full bg-indigo-50 flex items-center justify-center z-10 text-indigo-500 group-hover:scale-110 transition-transform">
+                          <ArrowRightLeft size={12} />
+                        </div>
+                     </div>
+                     <div className="font-bold text-rose-600 max-w-[40%] truncate text-right" title={debt.debtor}>{debt.debtor}</div>
+                  </div>
+                  <div className="bg-white p-3 rounded-xl border border-slate-100 flex items-center justify-between">
+                     <span className="text-xs font-medium text-slate-500">ยอดหนี้คงค้าง</span>
+                     <span className="font-extrabold text-indigo-600 text-lg">{formatCurrency(debt.amount)}</span>
+                  </div>
+               </div>
+             ))}
+          </div>
+        ) : (
+          <div className="p-10 flex flex-col items-center justify-center text-slate-400">
+             <ArrowRightLeft size={48} className="mb-4 opacity-20" />
+             <p className="font-medium">ไม่มีรายการค้างชำระระหว่างโครงการ</p>
+          </div>
+        )}
+      </div>
+
     </div>
   );
 };

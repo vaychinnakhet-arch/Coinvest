@@ -194,28 +194,28 @@ const App: React.FC = () => {
     return (
       <button
         onClick={() => setView(viewName)}
-        className={`relative group flex items-center gap-4 px-4 py-3.5 rounded-[24px] transition-all duration-300 w-full text-left mb-2 ${
+        className={`w-full flex items-center gap-4 px-4 py-3.5 rounded-2xl transition-all duration-300 group relative overflow-hidden ${
           isActive 
-            ? 'bg-teal-400 text-white shadow-md shadow-teal-400/30 scale-[1.02]' 
-            : 'text-slate-500 hover:bg-slate-50 hover:text-teal-500'
+            ? 'bg-slate-900 text-white shadow-lg shadow-slate-900/20 translate-x-1' 
+            : 'text-slate-500 hover:bg-white hover:text-slate-900 hover:shadow-sm hover:translate-x-1'
         }`}
       >
         {/* Icon Container */}
-        <div className={`p-2.5 rounded-2xl transition-all duration-300 flex items-center justify-center ${
+        <div className={`p-2 rounded-xl transition-all duration-300 flex items-center justify-center relative z-10 ${
           isActive 
-            ? 'bg-white/20 text-white shadow-inner' 
-            : 'bg-white text-slate-400 group-hover:bg-teal-50 group-hover:text-teal-500 shadow-sm ring-1 ring-slate-100'
+            ? 'bg-white/10 text-white' 
+            : 'bg-slate-100 text-slate-400 group-hover:bg-indigo-50 group-hover:text-indigo-600'
         }`}>
           <Icon size={20} strokeWidth={isActive ? 2.5 : 2} />
         </div>
         
         {/* Text */}
-        <div className="flex flex-col">
-          <span className={`font-bold text-[15px] tracking-tight ${isActive ? 'text-white' : 'text-slate-700 group-hover:text-teal-900'}`}>
+        <div className="flex flex-col text-left relative z-10">
+          <span className={`font-bold text-[15px] tracking-tight ${isActive ? 'text-white' : 'text-slate-700 group-hover:text-slate-900'}`}>
             {label}
           </span>
           {description && (
-             <span className={`text-[11px] font-medium mt-0.5 ${isActive ? 'text-teal-50' : 'text-slate-400'}`}>
+             <span className={`text-[11px] font-medium mt-0.5 ${isActive ? 'text-slate-300' : 'text-slate-400 group-hover:text-slate-500'}`}>
                {description}
              </span>
           )}
@@ -259,28 +259,28 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="flex h-screen bg-[#F0F4F8] text-slate-800 font-sans overflow-hidden">
+    <div className="flex h-screen bg-slate-100 text-slate-800 font-sans overflow-hidden">
       {/* Sidebar - Enhanced Desktop */}
-      <aside className="w-72 bg-white border-r border-slate-100 hidden md:flex flex-col p-6 z-20 relative shadow-[4px_0_24px_rgba(0,0,0,0.02)] rounded-r-[40px]">
+      <aside className="w-[280px] bg-white/60 backdrop-blur-3xl border border-white/80 hidden md:flex flex-col p-5 z-20 m-4 rounded-[32px] shadow-[0_8px_32px_rgba(0,0,0,0.04)] relative">
         {/* Logo Section */}
-        <div className="flex items-center gap-4 mb-10 px-2">
+        <div className="flex items-center gap-4 mb-10 px-3 mt-2">
           <div className="relative">
-            <div className="w-12 h-12 bg-teal-400 rounded-[20px] flex items-center justify-center text-white shadow-lg shadow-teal-400/30">
+            <div className="w-12 h-12 bg-slate-900 rounded-[18px] flex items-center justify-center text-white shadow-lg shadow-slate-900/20">
                <PieChart size={24} strokeWidth={2.5} />
             </div>
           </div>
           <div className="flex flex-col">
-            <h1 className="text-2xl font-extrabold text-slate-800 tracking-tight leading-none mb-1">
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight leading-none mb-1">
               CoInvest
             </h1>
-            <p className="text-[10px] font-bold text-teal-500 uppercase tracking-[0.2em]">Finance Tracker</p>
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-[0.2em]">Finance Tracker</p>
           </div>
         </div>
 
         {/* Navigation */}
-        <nav className="flex-1 overflow-y-auto pr-2 -mr-2 scrollbar-hide">
-          <div className="space-y-1">
-            <p className="px-4 text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-4 mt-2">Menu</p>
+        <nav className="flex-1 overflow-y-auto pr-1 -mr-1 scrollbar-hide">
+          <div className="space-y-1.5">
+            <p className="px-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4 mt-2">Menu</p>
             <NavItem viewName="DASHBOARD" label="ภาพรวม" icon={LayoutDashboard} description="Dashboard Overview" />
             <NavItem viewName="PROJECTS" label="โครงการ & บัญชี" icon={FolderKanban} description="Manage Projects" />
             <NavItem viewName="ACCOUNTS" label="บัญชีรายรับ-จ่าย" icon={FileText} description="All Transactions" />
@@ -288,10 +288,10 @@ const App: React.FC = () => {
             <NavItem viewName="PARTNERS" label="สรุปยอดหุ้นส่วน" icon={Users} description="Partner Shares" />
           </div>
           
-          <div className="my-8 border-t border-slate-100/80 mx-4"></div>
+          <div className="my-6 border-t border-slate-200/50 mx-5"></div>
           
-          <div className="space-y-1">
-            <p className="px-4 text-[11px] font-bold text-slate-400 uppercase tracking-[0.15em] mb-4">System</p>
+          <div className="space-y-1.5">
+            <p className="px-5 text-[10px] font-bold text-slate-400 uppercase tracking-[0.2em] mb-4">System</p>
             <NavItem viewName="SETTINGS" label="จัดการข้อมูล" icon={SettingsIcon} description="Settings & Backup" />
           </div>
         </nav>
