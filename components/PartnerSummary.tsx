@@ -3,6 +3,7 @@ import { AppState, TransactionType, Transaction } from '../types';
 import { Button, Card, Badge } from './ui/Components';
 import { Download, Filter, X, PieChart, Wallet, Loader2, FileText, TrendingUp, Building2, Calendar, User, ChevronRight, ArrowUpRight, ChevronDown } from 'lucide-react';
 import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface PartnerSummaryProps {
   data: AppState;
@@ -37,16 +38,14 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
     setIsExporting(true);
     
     try {
-      // Small delay to ensure styles are settled
-      await new Promise(resolve => setTimeout(resolve, 200));
+      await document.fonts.ready;
       
       const canvas = await html2canvas(printRef.current, {
         scale: 2, // High resolution for Retina
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#ffffff',
         logging: false,
         useCORS: true,
-        allowTaint: true,
-        windowWidth: 1920, 
+        windowWidth: 1100,
         scrollX: 0,
         scrollY: 0,
         onclone: (clonedDoc) => {
@@ -62,22 +61,29 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
           if (container) {
              container.style.boxShadow = 'none';
              container.style.margin = '0 auto';
-             container.style.backgroundColor = '#F8FAFC';
-             container.style.width = '1600px';
+             container.style.backgroundColor = '#ffffff';
+             container.style.width = '1100px';
              container.style.maxWidth = 'none';
           }
         }
       });
       
-      const link = document.createElement('a');
       const partnerName = filterPartner !== 'all' ? data.partners.find(p => p.id === filterPartner)?.name : 'All';
       const monthStr = filterMonth ? `-${filterMonth}` : '';
-      link.download = `CoInvest-Statement-${partnerName}${monthStr}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const pageHeight = Math.floor(canvas.width * 297 / 210);
+      for (let offset = 0, page = 0; offset < canvas.height; offset += pageHeight, page += 1) {
+        const slice = document.createElement('canvas');
+        slice.width = canvas.width;
+        slice.height = Math.min(pageHeight, canvas.height - offset);
+        slice.getContext('2d')?.drawImage(canvas, 0, offset, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
+        if (page > 0) doc.addPage();
+        doc.addImage(slice.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, 210, 210 * slice.height / slice.width, undefined, 'FAST');
+      }
+      doc.save(`CoInvest-Partner-${partnerName}${monthStr}.pdf`);
     } catch (err) {
       console.error("Export failed:", err);
-      alert("ไม่สามารถบันทึกรูปภาพได้ กรุณาลองใหม่อีกครั้ง");
+      alert("ไม่สามารถสร้าง PDF ได้ กรุณาลองใหม่อีกครั้ง");
     } finally {
       setIsExporting(false);
     }
@@ -178,12 +184,12 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
   }, [expandedPartnerId, filteredData]);
 
   return (
-    <div className="space-y-8 pb-10 animate-in fade-in duration-500">
+    <div className="space-y-5 pb-24 md:pb-8">
       
       {/* Detail Modal Overlay */}
       {expandedPartnerId && expandedPartnerData && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white w-full max-w-2xl rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] animate-in zoom-in-95 duration-200">
+          <div className="bg-white w-full max-w-2xl rounded-2xl shadow-xl overflow-hidden flex flex-col max-h-[90vh]">
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-4">
@@ -250,9 +256,9 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                               )}
                            </div>
                            {/* Receipt Image Preview if exists */}
-                           {inv.receipt && (
+                           {inv.receiptImage && (
                              <div className="mt-3">
-                               <img src={inv.receipt} alt="Receipt" className="h-16 w-auto rounded-lg border border-slate-200 object-cover cursor-pointer hover:opacity-90" onClick={() => window.open(inv.receipt, '_blank')} />
+                               <img src={inv.receiptImage} alt="Receipt" className="h-16 w-auto rounded-lg border border-slate-200 object-cover cursor-pointer hover:opacity-90" onClick={() => window.open(inv.receiptImage, '_blank')} />
                              </div>
                            )}
                         </div>
@@ -278,17 +284,17 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
           <p className="text-slate-500 text-sm mt-1">ติดตามเงินลงทุนและสัดส่วนของผู้ถือหุ้น</p>
         </div>
         <div className="flex gap-2">
-           <Button onClick={handleDownload} disabled={isExporting} variant="outline" className="bg-white hover:bg-slate-50 text-slate-600 border-slate-200">
+           <Button onClick={handleDownload} disabled={isExporting} variant="secondary" className="bg-white hover:bg-slate-50 text-slate-600 border-slate-200">
             {isExporting ? <Loader2 className="animate-spin mr-2" size={16}/> : <Download className="mr-2" size={16}/>}
-            บันทึกรูปภาพ
+            ส่งออก PDF
           </Button>
         </div>
       </div>
 
       {/* Filters Card */}
-      <Card className="bg-white border-slate-200 shadow-sm p-5">
+      <Card className="bg-white border-slate-200 p-4">
         <div className="flex items-center gap-2 text-slate-700 font-bold mb-4">
-           <Filter size={18} className="text-indigo-500"/> ตัวกรองข้อมูล
+           <Filter size={18} className="text-teal-700"/> ตัวกรองข้อมูล
         </div>
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
            <div className="space-y-1.5">
@@ -342,11 +348,10 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
         <div 
           ref={printRef}
           id="export-container"
-          className="w-full mx-auto bg-slate-50 p-8 rounded-[32px] border border-slate-200 shadow-sm relative overflow-hidden min-h-[600px]"
+          className="game-panel w-full mx-auto bg-[#f7f3ea] p-4 md:p-7 relative overflow-hidden min-h-[600px]"
         >
            {/* Decorative Header */}
-           <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-indigo-600 to-indigo-800"></div>
-           <div className="absolute top-0 left-0 w-full h-32 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+           <div className="absolute top-0 left-0 w-full h-32 bg-gradient-to-b from-teal-700 to-teal-800"></div>
            
            <div className="relative z-10 mb-8 flex flex-col md:flex-row justify-between items-end gap-6 text-white">
               <div>
@@ -368,7 +373,7 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
              {filteredData.map((partner) => (
                <div 
                  key={partner.id} 
-                 className="bg-white rounded-3xl overflow-hidden shadow-sm border border-slate-100 flex flex-col h-full group hover:shadow-md transition-all duration-300"
+                 className="overflow-hidden rounded-[13px] border-2 border-[#2f3a3d] bg-[#fffdf7] flex flex-col h-full shadow-[3px_3px_0_#2f3a3d]"
                >
                  {/* Card Header */}
                  <div className="p-6 border-b border-slate-50 bg-gradient-to-br from-white to-slate-50/50">
@@ -451,13 +456,13 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                                             </div>
                                          </div>
                                          <div className={`font-bold shrink-0 pt-0.5 ${
-                                            (inv.type === TransactionType.WITHDRAWAL || inv.type === TransactionType.INCOME)
+                                            inv.type === TransactionType.INCOME
                                               ? 'text-rose-600' 
                                               : inv.type === TransactionType.EXPENSE 
                                                 ? 'text-rose-500' 
                                                 : 'text-indigo-600'
                                          }`}>
-                                            {(inv.type === TransactionType.WITHDRAWAL || inv.type === TransactionType.INCOME) ? '-' : '+'}{formatMoney(inv.amount)}
+                                            {inv.type === TransactionType.INCOME ? '-' : '+'}{formatMoney(inv.amount)}
                                          </div>
                                       </div>
                                    ))}

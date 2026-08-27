@@ -308,9 +308,9 @@ function getSheetData(sheet) {
   };
 
   return (
-    <div className="space-y-8 pb-10">
+    <div className="space-y-5 pb-24 md:pb-8">
       {/* Cloud Sync Config */}
-      <Card title="ตั้งค่าการเชื่อมต่อ (Cloud Sync)" className="border-indigo-100 bg-indigo-50/30 shadow-sm !p-6 md:!p-8">
+      <Card title="การเชื่อมต่อข้อมูล" className="border-teal-100 bg-teal-50/30 !p-5 md:!p-6">
          <div className="space-y-6">
             <div className="flex flex-col md:flex-row gap-4 items-end">
                <div className="w-full">
@@ -338,7 +338,7 @@ function getSheetData(sheet) {
                </div>
             </div>
 
-            <div className="bg-white p-5 rounded-2xl border border-slate-200 shadow-sm transition-all duration-300">
+            <div className="rounded-[13px] border-2 border-[#2f3a3d] bg-[#fffdf7] p-5 shadow-[3px_3px_0_#2f3a3d] transition-all duration-300">
                 <div 
                    className="flex justify-between items-center cursor-pointer group" 
                    onClick={() => setShowCode(!showCode)}
@@ -560,14 +560,14 @@ function getSheetData(sheet) {
       </Card>
 
       {/* Partner Management Section */}
-      <Card title="จัดการรายชื่อหุ้นส่วน (Partner Management)" className="border-slate-100 shadow-sm !p-6 md:!p-8">
+      <Card title="จัดการรายชื่อผู้ถือหุ้น" className="border-slate-200 !p-5 md:!p-6">
          <div className="flex flex-col md:flex-row gap-8 lg:gap-12">
             {/* Form */}
             <div className="w-full md:w-1/3 space-y-6">
                <h4 className="font-bold text-slate-800 flex items-center gap-2 text-lg tracking-tight">
                  <div className="p-2 bg-indigo-50 text-indigo-600 rounded-xl"><Plus size={18}/></div> เพิ่มหุ้นส่วนใหม่
                </h4>
-               <form onSubmit={handleCreatePartner} className="space-y-5 p-5 bg-slate-50/50 rounded-3xl border border-slate-100">
+               <form onSubmit={handleCreatePartner} className="space-y-5 rounded-[12px] border-2 border-[#cfd4cd] bg-[#f7f3ea] p-4">
                   <Input 
                     label="ชื่อหุ้นส่วน" 
                     value={newPartnerName} 
@@ -618,7 +618,7 @@ function getSheetData(sheet) {
                </h4>
                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                   {data.partners.map(p => (
-                    <div key={p.id} className="flex flex-col p-4 bg-white border border-slate-100 rounded-3xl shadow-sm hover:shadow-md transition-all duration-300 group relative overflow-hidden">
+                    <div key={p.id} className="group relative flex flex-col overflow-hidden rounded-[12px] border-2 border-[#cfd4cd] bg-[#fffdf7] p-4">
                        <div className="absolute top-0 right-0 p-3 opacity-0 group-hover:opacity-100 transition-opacity">
                          <button 
                            onClick={() => {
@@ -648,7 +648,7 @@ function getSheetData(sheet) {
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
         {/* Export Section */}
-        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center group hover:shadow-md transition-all duration-300">
+        <div className="game-panel flex flex-col items-center p-5 text-center md:p-6">
             <div className="w-14 h-14 bg-indigo-50 text-indigo-600 rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300">
               <Download size={28} />
             </div>
@@ -660,7 +660,7 @@ function getSheetData(sheet) {
         </div>
 
         {/* Import Section */}
-        <div className="bg-white p-6 md:p-8 rounded-3xl border border-slate-100 shadow-sm flex flex-col items-center text-center group hover:shadow-md transition-all duration-300">
+        <div className="game-panel flex flex-col items-center p-5 text-center md:p-6">
             <div className={`w-14 h-14 rounded-2xl flex items-center justify-center mb-5 group-hover:scale-110 transition-transform duration-300 ${importStatus === 'error' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
               {importStatus === 'success' ? <CheckCircle2 size={28}/> : <Upload size={28} />}
             </div>

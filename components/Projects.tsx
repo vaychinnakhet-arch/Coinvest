@@ -1,1096 +1,283 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { AppState, Project, Transaction, TransactionType, Partner } from '../types';
-import { Card, Button, Input, Select, Badge } from './ui/Components';
-import { Plus, FolderOpen, ArrowRight, Trash2, Calendar, FileText, DollarSign, Pencil, X, User, Wallet, Split, CheckCircle2, AlertCircle, Building2, FolderKanban, ChevronDown, ChevronUp, Image as ImageIcon, Receipt, Eye, Loader2, TrendingUp, TrendingDown } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowUp,
+  Building2,
+  Calendar,
+  Camera,
+  Check,
+  ChevronRight,
+  FilePlus2,
+  FolderKanban,
+  Image as ImageIcon,
+  Loader2,
+  Pencil,
+  Plus,
+  Split,
+  Trash2,
+  Wallet,
+  X,
+} from 'lucide-react';
+import { AppState, Project, Transaction, TransactionType } from '../types';
+import { formatMoney, getFinancialSummary } from '../services/finance';
 
 interface ProjectsProps {
   data: AppState;
-  onAddProject: (p: Omit<Project, 'id'>) => void;
-  onAddTransaction: (t: Omit<Transaction, 'id'>) => void;
-  onUpdateTransaction: (t: Transaction) => void;
+  onAddProject: (project: Omit<Project, 'id'>) => void;
+  onAddTransaction: (transaction: Omit<Transaction, 'id'>) => void;
+  onUpdateTransaction: (transaction: Transaction) => void;
   onDeleteTransaction: (id: string) => void;
 }
 
+const typeConfig = {
+  [TransactionType.EXPENSE]: { label: 'รายจ่าย', color: 'text-rose-700 bg-rose-50', icon: ArrowDown },
+  [TransactionType.INCOME]: { label: 'รายรับ', color: 'text-teal-700 bg-teal-50', icon: ArrowUp },
+  [TransactionType.INVESTMENT]: { label: 'เงินลงทุน', color: 'text-blue-700 bg-blue-50', icon: Wallet },
+};
+
 export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTransaction, onUpdateTransaction, onDeleteTransaction }) => {
-  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(data.projects.length > 0 ? data.projects[0].id : null);
-  const [showNewProjectForm, setShowNewProjectForm] = useState(false);
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true); // Mobile toggle
-  const [viewImage, setViewImage] = useState<string | null>(null); // For Image Modal
-  const [isFormOpen, setIsFormOpen] = useState(false); // For Transaction Form Modal
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null); // For Delete Confirmation
-  
-  // New Project State
-  const [newProjectName, setNewProjectName] = useState('');
-  const [newProjectDesc, setNewProjectDesc] = useState('');
-
-  // Transaction Form State
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [transType, setTransType] = useState<TransactionType>(TransactionType.EXPENSE);
-  const [transAmount, setTransAmount] = useState('');
-  const [transPartner, setTransPartner] = useState(''); // Empty = Central Pool, ID = Partner OR ProjectID (for cross-project)
-  const [transNote, setTransNote] = useState('');
-  const [transDate, setTransDate] = useState(new Date().toISOString().split('T')[0]);
-  const [transImage, setTransImage] = useState<string>(''); // Base64 string
-  const [transImage2, setTransImage2] = useState<string>(''); // Base64 string
-  const [transImage3, setTransImage3] = useState<string>(''); // Base64 string
-  const [transImage4, setTransImage4] = useState<string>(''); // Base64 string
-  const [isProcessingImage, setIsProcessingImage] = useState(false);
-  const [isProcessingImage2, setIsProcessingImage2] = useState(false);
-  const [isProcessingImage3, setIsProcessingImage3] = useState(false);
-  const [isProcessingImage4, setIsProcessingImage4] = useState(false);
-
-  // Split Payment State
-  const [isSplitMode, setIsSplitMode] = useState(false);
+  const [selectedProjectId, setSelectedProjectId] = useState<string | null>(data.projects[0]?.id || null);
+  const [showProjectForm, setShowProjectForm] = useState(false);
+  const [showTransactionForm, setShowTransactionForm] = useState(false);
+  const [projectName, setProjectName] = useState('');
+  const [projectDescription, setProjectDescription] = useState('');
+  const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+  const [type, setType] = useState<TransactionType>(TransactionType.EXPENSE);
+  const [amount, setAmount] = useState('');
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const [note, setNote] = useState('');
+  const [source, setSource] = useState('POOL');
+  const [splitMode, setSplitMode] = useState(false);
   const [splitAmounts, setSplitAmounts] = useState<Record<string, string>>({});
+  const [receipts, setReceipts] = useState<string[]>([]);
+  const [processingImages, setProcessingImages] = useState(false);
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
 
-  const selectedProject = data.projects.find(p => p.id === selectedProjectId);
-  
-  // Filter other projects
-  const otherProjects = data.projects.filter(p => p.id !== selectedProjectId);
-  
-  // Ensure strict date sorting (Newest -> Oldest)
-  const projectTransactions = useMemo(() => data.transactions
-    .filter(t => t.projectId === selectedProjectId)
-    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [data.transactions, selectedProjectId]);
-
-  // Calculate Stats
-  const projectStats = useMemo(() => {
-    let income = 0;
-    let expense = 0;
-    let investment = 0;
-
-    projectTransactions.forEach(t => {
-      if (t.type === TransactionType.INCOME) income += t.amount;
-      else if (t.type === TransactionType.EXPENSE) expense += t.amount;
-      else if (t.type === TransactionType.INVESTMENT) investment += t.amount;
-    });
-
-    return {
-      income,
-      expense,
-      investment,
-      balance: income + investment - expense
-    };
-  }, [projectTransactions]);
-
-  // Group transactions by date
-  const groupedTransactions = useMemo(() => {
-    const groups: Record<string, Transaction[]> = {};
-    projectTransactions.forEach(t => {
-      const dateKey = t.date; // YYYY-MM-DD
-      if (!groups[dateKey]) groups[dateKey] = [];
-      groups[dateKey].push(t);
-    });
-    return groups;
-  }, [projectTransactions]);
-
-  // Reset split state when opening form
   useEffect(() => {
-    if (!editingId) {
-      setSplitAmounts({ 'POOL': '' });
-    }
-  }, [editingId]);
+    if (!selectedProjectId && data.projects[0]) setSelectedProjectId(data.projects[0].id);
+  }, [data.projects, selectedProjectId]);
 
-  // Auto-collapse sidebar on mobile selection
-  const handleSelectProject = (id: string) => {
-    setSelectedProjectId(id);
-    if (window.innerWidth < 1024) {
-      setIsSidebarOpen(false);
-    }
+  const selectedProject = data.projects.find(project => project.id === selectedProjectId);
+  const projectTransactions = useMemo(() => data.transactions
+    .filter(transaction => transaction.projectId === selectedProjectId)
+    .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()), [data.transactions, selectedProjectId]);
+  const projectSummary = useMemo(() => getFinancialSummary({ transactions: projectTransactions }, projectTransactions), [projectTransactions]);
+  const otherProjects = data.projects.filter(project => project.id !== selectedProjectId);
+
+  const resetTransactionForm = () => {
+    setEditingTransaction(null);
+    setType(TransactionType.EXPENSE);
+    setAmount('');
+    setDate(new Date().toISOString().slice(0, 10));
+    setNote('');
+    setSource('POOL');
+    setSplitMode(false);
+    setSplitAmounts({});
+    setReceipts([]);
+    setProcessingImages(false);
   };
 
-  const handleCreateProject = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newProjectName) return;
-    onAddProject({
-      name: newProjectName,
-      description: newProjectDesc,
-      status: 'planning',
-      startDate: new Date().toISOString(),
-    });
-    setNewProjectName('');
-    setNewProjectDesc('');
-    setShowNewProjectForm(false);
+  const openNewTransaction = () => {
+    resetTransactionForm();
+    setShowTransactionForm(true);
   };
 
-  const handleImageChange = (e: React.ChangeEvent<HTMLInputElement>, imageIndex: number = 1) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+  const openEditTransaction = (transaction: Transaction) => {
+    setEditingTransaction(transaction);
+    setType(transaction.type);
+    setAmount(String(transaction.amount));
+    setDate(transaction.date);
+    setNote(transaction.note);
+    setSource(transaction.partnerId || 'POOL');
+    setSplitMode(false);
+    setSplitAmounts({});
+    setReceipts([transaction.receiptImage, transaction.receiptImage2, transaction.receiptImage3, transaction.receiptImage4].filter(Boolean) as string[]);
+    setShowTransactionForm(true);
+  };
 
-    let setProcessing: React.Dispatch<React.SetStateAction<boolean>>;
-    let setImage: React.Dispatch<React.SetStateAction<string>>;
+  const createProject = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!projectName.trim()) return;
+    onAddProject({ name: projectName.trim(), description: projectDescription.trim(), status: 'active', startDate: new Date().toISOString() });
+    setProjectName('');
+    setProjectDescription('');
+    setShowProjectForm(false);
+  };
 
-    if (imageIndex === 1) {
-      setProcessing = setIsProcessingImage;
-      setImage = setTransImage;
-    } else if (imageIndex === 2) {
-      setProcessing = setIsProcessingImage2;
-      setImage = setTransImage2;
-    } else if (imageIndex === 3) {
-      setProcessing = setIsProcessingImage3;
-      setImage = setTransImage3;
-    } else {
-      setProcessing = setIsProcessingImage4;
-      setImage = setTransImage4;
-    }
-
-    setProcessing(true);
-
-    // Google Sheets Cell Limit is 50,000 characters.
-    // 1. If file is small (< 35KB), use original directly (Best Quality)
-    if (file.size < 35 * 1024) {
-       const reader = new FileReader();
-       reader.onload = (ev) => {
-          setImage(ev.target?.result as string);
-          setProcessing(false);
-       };
-       reader.readAsDataURL(file);
-       return;
-    }
-
-    // 2. Compress Image logic (Smart Fit)
+  const compressImage = (file: File) => new Promise<string>((resolve, reject) => {
     const reader = new FileReader();
-    reader.onload = (event) => {
-      const img = new Image();
-      img.onload = () => {
+    reader.onerror = reject;
+    reader.onload = event => {
+      const image = new Image();
+      image.onerror = reject;
+      image.onload = () => {
         const canvas = document.createElement('canvas');
-        const ctx = canvas.getContext('2d');
-        
-        // Increase resolution from 400 to 800 to improve readability
-        const MAX_WIDTH = 800; 
-        const MAX_HEIGHT = 800;
-        let width = img.width;
-        let height = img.height;
-
-        if (width > height) {
-          if (width > MAX_WIDTH) {
-            height *= MAX_WIDTH / width;
-            width = MAX_WIDTH;
-          }
-        } else {
-          if (height > MAX_HEIGHT) {
-            width *= MAX_HEIGHT / height;
-            height = MAX_HEIGHT;
-          }
+        const scale = Math.min(1, 1000 / Math.max(image.width, image.height));
+        canvas.width = Math.round(image.width * scale);
+        canvas.height = Math.round(image.height * scale);
+        canvas.getContext('2d')?.drawImage(image, 0, 0, canvas.width, canvas.height);
+        let quality = 0.82;
+        let result = canvas.toDataURL('image/jpeg', quality);
+        while (result.length > 49000 && quality > 0.18) {
+          quality -= 0.08;
+          result = canvas.toDataURL('image/jpeg', quality);
         }
-
-        canvas.width = width;
-        canvas.height = height;
-        ctx?.drawImage(img, 0, 0, width, height);
-        
-        // Start with high quality (0.8)
-        let quality = 0.8;
-        let dataUrl = canvas.toDataURL('image/jpeg', quality);
-
-        // Downgrade quality step-by-step only if it exceeds Google Sheets limit (50k chars)
-        while (dataUrl.length > 50000 && quality > 0.1) {
-            quality -= 0.1;
-            dataUrl = canvas.toDataURL('image/jpeg', quality);
-        }
-
-        setImage(dataUrl);
-        setProcessing(false);
+        resolve(result);
       };
-      img.src = event.target?.result as string;
+      image.src = event.target?.result as string;
     };
     reader.readAsDataURL(file);
-  };
+  });
 
-  const calculateSplitTotal = () => {
-    return (Object.values(splitAmounts) as string[]).reduce((sum, val) => sum + (parseFloat(val) || 0), 0);
-  };
-
-  const handleToggleSplitMode = () => {
-    const nextState = !isSplitMode;
-    setIsSplitMode(nextState);
-    
-    if (nextState && editingId) {
-        const sourceKey = transPartner || 'POOL';
-        setSplitAmounts({ [sourceKey]: transAmount });
-    } else if (!nextState && !editingId) {
-        setSplitAmounts({ 'POOL': '' });
+  const addReceiptImages = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []).slice(0, 4 - receipts.length);
+    if (!files.length) return;
+    setProcessingImages(true);
+    try {
+      const compressed = await Promise.all(files.map(compressImage));
+      setReceipts(current => [...current, ...compressed].slice(0, 4));
+    } catch {
+      alert('อ่านไฟล์รูปไม่สำเร็จ กรุณาลองเลือกรูปใหม่');
+    } finally {
+      setProcessingImages(false);
+      event.target.value = '';
     }
   };
 
-  const handleFormSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!selectedProjectId || !transAmount || isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4) return;
+  const receiptFields = (images: string[]) => ({
+    receiptImage: images[0] || undefined,
+    receiptImage2: images[1] || undefined,
+    receiptImage3: images[2] || undefined,
+    receiptImage4: images[3] || undefined,
+  });
 
-    const totalAmount = parseFloat(transAmount);
+  const addExpenseFromSource = (sourceKey: string, sourceAmount: number) => {
+    if (!selectedProjectId) return;
+    const common = { amount: sourceAmount, date, ...receiptFields(receipts) };
+    const partner = data.partners.find(item => item.id === sourceKey);
+    const sourceProject = data.projects.find(item => item.id === sourceKey);
 
-    if (editingId) {
-      if (isSplitMode) {
-           const currentSplitTotal = calculateSplitTotal();
-           if (Math.abs(currentSplitTotal - totalAmount) > 1) {
-             alert(`ยอดรวมที่กระจาย (${currentSplitTotal.toLocaleString()}) ไม่ตรงกับยอดรายการ (${totalAmount.toLocaleString()})`);
-             return;
-           }
-           onDeleteTransaction(editingId);
-      } else {
-           const sourceProject = data.projects.find(p => p.id === transPartner);
-            onUpdateTransaction({
-               id: editingId,
-               projectId: selectedProjectId,
-               type: transType,
-               amount: totalAmount,
-               date: transDate,
-               note: sourceProject ? `${transNote} (ปรับปรุง: รับเงินจาก ${sourceProject.name})` : transNote,
-               partnerId: sourceProject ? undefined : (transPartner || undefined),
-               receiptImage: transImage,
-               receiptImage2: transImage2,
-               receiptImage3: transImage3,
-               receiptImage4: transImage4
-            });
-
-            if (sourceProject) {
-               // 1. Expense in Source Project (Money leaving)
-               onAddTransaction({
-                   projectId: sourceProject.id,
-                   type: TransactionType.EXPENSE,
-                   amount: totalAmount,
-                   date: transDate,
-                   note: `(ปรับปรุงรายการ) โอนไปโครงการ: ${selectedProject?.name} - ${transNote}`,
-                   partnerId: undefined
-                });
-
-               // 2. Income in Current Project (Money entering) - FIX for Double Counting
-               onAddTransaction({
-                   projectId: selectedProjectId,
-                   type: TransactionType.INCOME,
-                   amount: totalAmount,
-                   date: transDate,
-                   note: `(ปรับปรุงรายการ) รับเงินโอนจากโครงการ: ${sourceProject.name} - ${transNote}`,
-                   partnerId: undefined
-                });
-            }
-            
-            setEditingId(null);
-            resetForm();
-            setIsFormOpen(false);
-            return; 
-      }
+    if (sourceProject) {
+      onAddTransaction({ projectId: selectedProjectId, type: TransactionType.EXPENSE, note: `${note || 'รายจ่าย'} (จ่ายโดยโครงการ: ${sourceProject.name})`, partnerId: undefined, ...common });
+      onAddTransaction({ projectId: sourceProject.id, type: TransactionType.EXPENSE, note: `(ให้ยืม/โอนไปโครงการ: ${selectedProject?.name}) ${note}`, partnerId: undefined, amount: sourceAmount, date });
+      onAddTransaction({ projectId: selectedProjectId, type: TransactionType.INCOME, note: `(รับเงินยืม/โอนจากโครงการ: ${sourceProject.name}) ${note}`, partnerId: undefined, amount: sourceAmount, date });
+      return;
     }
 
-    let sourcesToProcess: Record<string, number> = {};
-
-    if (isSplitMode) {
-       const currentSplitTotal = calculateSplitTotal();
-       if (Math.abs(currentSplitTotal - totalAmount) > 1) {
-         alert(`ยอดรวมที่กระจาย (${currentSplitTotal.toLocaleString()}) ไม่ตรงกับยอดรายการ (${totalAmount.toLocaleString()})`);
-         return;
-       }
-       (Object.entries(splitAmounts) as [string, string][]).forEach(([key, val]) => {
-          const amt = parseFloat(val);
-          if (amt > 0) sourcesToProcess[key] = amt;
-       });
-    } else {
-       const sourceKey = transPartner || 'POOL';
-       sourcesToProcess[sourceKey] = totalAmount;
-    }
-
-    Object.entries(sourcesToProcess).forEach(([sourceKey, amount]) => {
-       const isPartner = data.partners.some(p => p.id === sourceKey);
-       const isProject = data.projects.some(p => p.id === sourceKey);
-       
-       if (isProject) {
-          const sourceProj = data.projects.find(p => p.id === sourceKey);
-          
-          // 1. The Expense in the Current Project (The one spending the money)
-          onAddTransaction({
-             projectId: selectedProjectId,
-             type: TransactionType.EXPENSE,
-             amount: amount,
-             date: transDate,
-             note: `${transNote} (จ่ายโดยโครงการ: ${sourceProj?.name})`,
-             partnerId: undefined,
-             receiptImage: transImage,
-             receiptImage2: transImage2,
-             receiptImage3: transImage3,
-             receiptImage4: transImage4
-          });
-
-          // 2. The Expense in the Source Project (Money leaving as a loan/transfer)
-          onAddTransaction({
-             projectId: sourceKey,
-             type: TransactionType.EXPENSE,
-             amount: amount,
-             date: transDate,
-             note: `(ให้ยืม/โอนไปโครงการ: ${selectedProject?.name}) ${transNote}`,
-             partnerId: undefined
-          });
-
-          // 3. The Income in the Current Project (Money entering as a loan/transfer) - FIX for Double Counting
-          onAddTransaction({
-             projectId: selectedProjectId,
-             type: TransactionType.INCOME,
-             amount: amount,
-             date: transDate,
-             note: `(รับเงินยืม/โอนจากโครงการ: ${sourceProj?.name}) สำหรับ: ${transNote}`,
-             partnerId: undefined
-          });
-
-       } else if (isPartner) {
-          const partnerName = data.partners.find(p => p.id === sourceKey)?.name;
-          onAddTransaction({
-             projectId: selectedProjectId,
-             type: TransactionType.EXPENSE,
-             amount: amount,
-             date: transDate,
-             note: isSplitMode ? `${transNote} (จ่ายโดย ${partnerName})` : transNote,
-             partnerId: sourceKey,
-             receiptImage: transImage,
-             receiptImage2: transImage2,
-             receiptImage3: transImage3,
-             receiptImage4: transImage4
-          });
-
-       } else {
-          onAddTransaction({
-             projectId: selectedProjectId,
-             type: TransactionType.EXPENSE,
-             amount: amount,
-             date: transDate,
-             note: isSplitMode ? `${transNote} (กองกลาง)` : transNote,
-             partnerId: undefined,
-             receiptImage: transImage,
-             receiptImage2: transImage2,
-             receiptImage3: transImage3,
-             receiptImage4: transImage4
-          });
-       }
+    onAddTransaction({
+      projectId: selectedProjectId,
+      type: TransactionType.EXPENSE,
+      note: splitMode && partner ? `${note || 'รายจ่าย'} (จ่ายโดย ${partner.name})` : note,
+      partnerId: partner?.id,
+      ...common,
     });
-
-    setEditingId(null);
-    resetForm();
-    setIsFormOpen(false);
   };
 
-  const resetForm = () => {
-    setTransAmount('');
-    setTransNote('');
-    setTransImage('');
-    setTransImage2('');
-    setTransImage3('');
-    setTransImage4('');
-    setIsProcessingImage(false);
-    setIsProcessingImage2(false);
-    setIsProcessingImage3(false);
-    setIsProcessingImage4(false);
-    setSplitAmounts({});
-    if (editingId) {
-      setTransType(TransactionType.EXPENSE);
-      setTransPartner('');
-      setTransDate(new Date().toISOString().split('T')[0]);
-      setIsSplitMode(false);
+  const saveTransaction = (event: React.FormEvent) => {
+    event.preventDefault();
+    if (!selectedProjectId || !amount || processingImages) return;
+    const numericAmount = Number(amount);
+    if (!Number.isFinite(numericAmount) || numericAmount <= 0) return;
+
+    if (editingTransaction) {
+      onUpdateTransaction({
+        ...editingTransaction,
+        type,
+        amount: numericAmount,
+        date,
+        note,
+        partnerId: source === 'POOL' ? undefined : source,
+        ...receiptFields(receipts),
+      });
+    } else if (type === TransactionType.EXPENSE) {
+      if (splitMode) {
+        const splits = Object.entries(splitAmounts).map(([key, value]) => [key, Number(value)] as const).filter(([, value]) => value > 0);
+        const splitTotal = splits.reduce((sum, [, value]) => sum + value, 0);
+        if (Math.abs(splitTotal - numericAmount) > 0.01) {
+          alert(`ยอดแบ่งจ่ายรวม ${formatMoney(splitTotal, 2)} บาท ต้องเท่ากับยอดรายการ ${formatMoney(numericAmount, 2)} บาท`);
+          return;
+        }
+        splits.forEach(([key, value]) => addExpenseFromSource(key, value));
+      } else {
+        addExpenseFromSource(source, numericAmount);
+      }
+    } else {
+      onAddTransaction({
+        projectId: selectedProjectId,
+        type,
+        amount: numericAmount,
+        date,
+        note,
+        partnerId: source === 'POOL' ? undefined : source,
+        ...receiptFields(receipts),
+      });
     }
+
+    setShowTransactionForm(false);
+    resetTransactionForm();
   };
 
-  const startEditing = (t: Transaction) => {
-    setEditingId(t.id);
-    setTransType(t.type);
-    setTransAmount(t.amount.toString());
-    setTransDate(t.date);
-    setTransNote(t.note);
-    setTransPartner(t.partnerId || '');
-    setTransImage(t.receiptImage || '');
-    setTransImage2(t.receiptImage2 || '');
-    setTransImage3(t.receiptImage3 || '');
-    setTransImage4(t.receiptImage4 || '');
-    setIsSplitMode(false); 
-    setIsFormOpen(true);
-    // Scroll to form on mobile
-    if (window.innerWidth < 1024) {
-      document.getElementById('transaction-form')?.scrollIntoView({ behavior: 'smooth' });
-    }
-  };
-
-  const cancelEditing = () => {
-    setEditingId(null);
-    resetForm();
-    setIsSplitMode(false);
-    setIsFormOpen(false);
-  };
-
-  const getTransactionColor = (type: TransactionType) => {
-    switch (type) {
-      case TransactionType.INCOME: return 'text-emerald-600 bg-emerald-50';
-      case TransactionType.EXPENSE: return 'text-rose-600 bg-rose-50';
-      case TransactionType.INVESTMENT: return 'text-indigo-600 bg-indigo-50';
-      default: return 'text-slate-600 bg-slate-50';
-    }
+  const deleteTransaction = (transaction: Transaction) => {
+    if (confirm(`ลบรายการ “${transaction.note || typeConfig[transaction.type].label}” หรือไม่?`)) onDeleteTransaction(transaction.id);
   };
 
   const sourceOptions = [
-    { value: '', label: 'กองกลาง (Central Pool)' },
-    { label: '--- หุ้นส่วน (Partners) ---', value: 'disabled_1', disabled: true },
-    ...data.partners.map(p => ({ value: p.id, label: `👤 ${p.name}` })),
+    { value: 'POOL', label: 'กองกลาง' },
+    ...data.partners.map(partner => ({ value: partner.id, label: `ผู้ถือหุ้น: ${partner.name}` })),
+    ...(type === TransactionType.EXPENSE ? otherProjects.map(project => ({ value: project.id, label: `โครงการอื่น: ${project.name}` })) : []),
   ];
-  
-  if (otherProjects.length > 0) {
-    sourceOptions.push({ label: '--- โครงการอื่น (Cross-Project) ---', value: 'disabled_2', disabled: true });
-    otherProjects.forEach(p => {
-      sourceOptions.push({ value: p.id, label: `🏢 ${p.name}` });
-    });
+
+  if (!data.projects.length) {
+    return <div className="flex min-h-[65vh] items-center justify-center"><div className="game-panel w-full max-w-lg bg-[#f4e4b9]/40 p-6 text-center md:p-8"><span className="mx-auto flex h-14 w-14 items-center justify-center rounded-[12px] border-2 border-[#2f3a3d] bg-[#dce9e1] text-[#3f6350] shadow-[2px_2px_0_#2f3a3d]"><FolderKanban size={25} /></span><h2 className="mt-4 text-xl font-bold text-[#2f3a3d]">เริ่มจากสร้างโครงการแรก</h2><p className="mt-2 text-sm leading-6 text-[#687477]">โครงการช่วยแยกรายรับ รายจ่าย และเงินลงทุนให้ตรวจสอบง่าย</p><ProjectForm name={projectName} description={projectDescription} setName={setProjectName} setDescription={setProjectDescription} onSubmit={createProject} onCancel={undefined} /></div></div>;
   }
 
   return (
-    <>
-    <div className="flex flex-col gap-6 h-auto min-h-screen relative pb-10">
-
-      {/* Delete Confirmation Modal */}
-      {deleteConfirmId && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-sm p-6 animate-in zoom-in-95 duration-200">
-            <div className="w-14 h-14 bg-rose-100 rounded-full flex items-center justify-center mx-auto mb-4">
-              <Trash2 size={28} className="text-rose-600" />
-            </div>
-            <h3 className="text-lg font-bold text-slate-800 text-center mb-1">ยืนยันการลบรายการ</h3>
-            <p className="text-sm text-slate-500 text-center mb-6">รายการนี้จะถูกลบถาวรและไม่สามารถกู้คืนได้</p>
-            <div className="flex gap-3">
-              <button
-                onClick={() => setDeleteConfirmId(null)}
-                className="flex-1 py-2.5 rounded-xl border border-slate-200 text-slate-600 font-medium hover:bg-slate-50 transition-colors"
-              >
-                ยกเลิก
-              </button>
-              <button
-                onClick={() => { onDeleteTransaction(deleteConfirmId); setDeleteConfirmId(null); }}
-                className="flex-1 py-2.5 rounded-xl bg-rose-600 text-white font-bold hover:bg-rose-700 transition-colors shadow-md shadow-rose-200"
-              >
-                ลบรายการ
-              </button>
-            </div>
-          </div>
+    <div className="space-y-5 pb-24 md:pb-8">
+      <section className="game-panel p-4">
+        <div className="flex items-center justify-between gap-3">
+          <div><h2 className="font-bold text-slate-900">เลือกโครงการ</h2><p className="mt-0.5 text-xs text-slate-500">{data.projects.length} โครงการ</p></div>
+          <button onClick={() => setShowProjectForm(value => !value)} className="pressable inline-flex min-h-10 items-center gap-2 rounded-xl border-2 border-[#2f3a3d] bg-[#fffdf7] px-3 text-sm font-bold text-[#2f3a3d] shadow-[2px_2px_0_#2f3a3d] hover:bg-[#f4f0e6]"><Plus size={16} /> โครงการใหม่</button>
         </div>
-      )}
-
-      {/* Image Modal */}
-      {viewImage && (
-        <div 
-          className="fixed inset-0 z-50 bg-black/80 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200"
-          onClick={() => setViewImage(null)}
-        >
-          <div className="relative max-w-2xl w-full max-h-[90vh]">
-             <img src={viewImage} className="w-full h-auto rounded-lg shadow-2xl object-contain max-h-[85vh]" alt="Receipt" />
-             <button 
-               className="absolute -top-10 right-0 text-white hover:text-gray-300"
-               onClick={() => setViewImage(null)}
-             >
-               <X size={32}/>
-             </button>
-          </div>
+        <div className="mt-4 flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+          {data.projects.map(project => <button key={project.id} onClick={() => setSelectedProjectId(project.id)} className={`flex shrink-0 items-center gap-2 rounded-xl border px-3 py-2.5 text-sm font-semibold ${selectedProjectId === project.id ? 'border-teal-700 bg-teal-700 text-white' : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'}`}><Building2 size={16} /> {project.name}</button>)}
         </div>
-      )}
+        {showProjectForm && <div className="mt-4 border-t border-slate-100 pt-4"><ProjectForm name={projectName} description={projectDescription} setName={setProjectName} setDescription={setProjectDescription} onSubmit={createProject} onCancel={() => setShowProjectForm(false)} /></div>}
+      </section>
 
-      {/* Top Bar List of Projects */}
-      <div className="w-full flex flex-col gap-4 transition-all duration-300">
-        <div className="flex justify-between items-center px-1">
-          <h2 className="text-xl font-bold text-slate-800 flex items-center gap-2 tracking-tight">
-            <FolderKanban className="text-indigo-600" size={24}/> โครงการทั้งหมด
-          </h2>
-          <Button size="sm" onClick={(e) => { e.stopPropagation(); setShowNewProjectForm(!showNewProjectForm); }} className="rounded-xl px-4 py-2 bg-indigo-50 text-indigo-600 hover:bg-indigo-100 border-indigo-200 shadow-sm">
-            <Plus size={18} className="mr-1" /> สร้างโครงการใหม่
-          </Button>
-        </div>
-
-        {/* Collapsible Area on Mobile */}
-        <div className="space-y-4">
-          {showNewProjectForm && (
-            <div className="animate-in slide-in-from-top-4 fade-in duration-300 bg-white p-5 rounded-2xl border border-indigo-100 shadow-lg shadow-indigo-50 relative overflow-hidden">
-              <div className="absolute top-0 right-0 p-4 opacity-5">
-                 <FolderOpen size={100}/>
-              </div>
-              <h3 className="text-lg font-bold text-slate-800 mb-4 relative z-10">สร้างโครงการใหม่</h3>
-              <form onSubmit={handleCreateProject} className="flex flex-col sm:flex-row gap-4 relative z-10">
-                <div className="flex-1 space-y-1">
-                   <label className="text-xs font-semibold text-slate-500 uppercase ml-1">ชื่อโครงการ</label>
-                   <Input 
-                     placeholder="เช่น สร้างบ้านลูกค้า A..." 
-                     value={newProjectName} 
-                     onChange={e => setNewProjectName(e.target.value)} 
-                     autoFocus
-                     className="w-full bg-slate-50 border-slate-200 focus:bg-white transition-all"
-                   />
-                </div>
-                <div className="flex-1 space-y-1">
-                   <label className="text-xs font-semibold text-slate-500 uppercase ml-1">รายละเอียด</label>
-                   <Input 
-                     placeholder="รายละเอียดสั้นๆ (ถ้ามี)" 
-                     value={newProjectDesc} 
-                     onChange={e => setNewProjectDesc(e.target.value)} 
-                     className="w-full bg-slate-50 border-slate-200 focus:bg-white transition-all"
-                   />
-                </div>
-                <div className="flex gap-2 justify-end mt-2 sm:mt-0 items-end">
-                  <Button type="button" variant="ghost" onClick={() => setShowNewProjectForm(false)} className="h-10 px-4 rounded-xl hover:bg-slate-100 text-slate-500">ยกเลิก</Button>
-                  <Button type="submit" className="h-10 px-6 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white shadow-md shadow-indigo-200 font-medium">บันทึก</Button>
-                </div>
-              </form>
-            </div>
-          )}
-
-          <div className="flex overflow-x-auto space-x-4 pb-4 px-1 custom-scrollbar snap-x">
-            {data.projects.map(p => (
-              <div 
-                key={p.id}
-                onClick={() => handleSelectProject(p.id)}
-                className={`snap-start p-5 rounded-2xl cursor-pointer transition-all duration-200 border group relative min-w-[280px] shrink-0 flex flex-col justify-between h-[140px] ${
-                  selectedProjectId === p.id 
-                    ? 'bg-gradient-to-br from-indigo-600 to-indigo-700 border-indigo-600 shadow-lg shadow-indigo-200 text-white transform scale-[1.02]' 
-                    : 'bg-white border-slate-200 hover:border-indigo-300 hover:shadow-md text-slate-600 hover:bg-slate-50'
-                }`}
-              >
-                <div className="flex justify-between items-start">
-                  <div className={`p-2 rounded-xl ${selectedProjectId === p.id ? 'bg-white/20 text-white' : 'bg-indigo-50 text-indigo-600'}`}>
-                     <Building2 size={20}/>
-                  </div>
-                  <div className={`px-2 py-1 rounded-lg text-[10px] font-bold uppercase tracking-wider ${
-                    selectedProjectId === p.id 
-                      ? (p.status === 'active' ? 'bg-emerald-400/20 text-emerald-100' : 'bg-amber-400/20 text-amber-100')
-                      : (p.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700')
-                  }`}>
-                    {p.status === 'active' ? 'Active' : 'Planning'}
-                  </div>
-                </div>
-                
-                <div>
-                  <h3 className={`font-bold text-lg tracking-tight line-clamp-1 mb-1 ${selectedProjectId === p.id ? 'text-white' : 'text-slate-800'}`}>{p.name}</h3>
-                  <p className={`text-xs line-clamp-1 ${selectedProjectId === p.id ? 'text-indigo-100' : 'text-slate-400'}`}>
-                    {p.description || "ไม่มีรายละเอียดเพิ่มเติม"}
-                  </p>
-                </div>
-              </div>
-            ))}
-            
-            {data.projects.length === 0 && (
-              <div className="text-center p-8 text-slate-400 border-2 border-dashed border-slate-200 rounded-2xl bg-slate-50 w-full flex flex-col items-center justify-center min-h-[140px]">
-                <FolderOpen size={32} className="mb-2 opacity-50"/>
-                <p className="font-medium text-sm">ยังไม่มีโครงการ</p>
-                <p className="text-xs opacity-70">สร้างโครงการแรกของคุณเลย</p>
-              </div>
-            )}
+      {selectedProject && <>
+        <section className="game-panel bg-[#dce9ec]/45 p-5">
+          <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
+            <div className="min-w-0"><div className="flex items-center gap-2"><h2 className="truncate text-xl font-bold text-slate-900 md:text-2xl">{selectedProject.name}</h2><span className="rounded-full bg-teal-50 px-2 py-1 text-[10px] font-semibold text-teal-700">กำลังดำเนินการ</span></div><p className="mt-2 max-w-2xl text-sm text-slate-500">{selectedProject.description || 'ยังไม่มีรายละเอียดโครงการ'}</p></div>
+            <button onClick={openNewTransaction} className="pressable inline-flex min-h-12 shrink-0 items-center justify-center gap-2 rounded-xl border-2 border-[#2f3a3d] bg-[#d96b5f] px-5 text-sm font-bold text-white shadow-[2px_2px_0_#2f3a3d] hover:bg-[#c95f54]"><FilePlus2 size={18} /> เพิ่มรายการ</button>
           </div>
-        </div>
-      </div>
+          <div className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5 lg:grid-cols-4"><Summary label="เงินพร้อมใช้" value={projectSummary.availableCash} primary /><Summary label="เงินผู้ถือหุ้น" value={projectSummary.shareholderFunds} /><Summary label="รายรับ" value={projectSummary.totalIncome} positive /><Summary label="รายจ่าย" value={projectSummary.totalExpense} negative /></div>
+        </section>
 
-      {/* Main Content Area */}
-      <div className="flex-1 min-w-0 flex flex-col h-full overflow-hidden">
-        {selectedProject ? (
-          <div className="flex flex-col h-full gap-4">
-             {/* Project Header & Stats */}
-             <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 shrink-0">
-                {/* Main Info Card */}
-                <Card className="lg:col-span-4 bg-white border-slate-200 relative overflow-hidden p-4 shadow-sm">
-                   <div className="absolute right-0 top-0 opacity-5 pointer-events-none">
-                       <FolderKanban size={120} className="text-indigo-500 transform translate-x-10 -translate-y-10"/>
-                   </div>
-                   <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-2 mb-1">
-                           <h2 className="text-2xl font-bold text-slate-800 tracking-tight">{selectedProject.name}</h2>
-                           <span className={`px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${selectedProject.status === 'active' ? 'bg-emerald-100 text-emerald-700' : 'bg-amber-100 text-amber-700'}`}>
-                             {selectedProject.status === 'active' ? 'Active' : 'Planning'}
-                           </span>
-                        </div>
-                        <div className="flex flex-wrap items-center gap-3 text-xs text-slate-500 font-medium">
-                           <span className="flex items-center gap-1 bg-slate-50 px-2 py-1 rounded border border-slate-100">
-                             <Calendar size={12} className="text-slate-400"/> 
-                             {new Date(selectedProject.startDate).toLocaleDateString('th-TH', { dateStyle: 'medium' })}
-                           </span>
-                           {selectedProject.description && (
-                             <span className="flex items-center gap-1 px-1 truncate max-w-[300px]">
-                               {selectedProject.description}
-                             </span>
-                           )}
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-3">
-                         <div className="text-right hidden md:block mr-2">
-                            <p className="text-[10px] text-slate-400 font-bold uppercase tracking-wider">คงเหลือสุทธิ</p>
-                            <p className={`text-xl font-bold ${projectStats.balance >= 0 ? 'text-slate-800' : 'text-rose-600'}`}>
-                              {projectStats.balance.toLocaleString()}
-                            </p>
-                         </div>
-                         <Button onClick={() => { resetForm(); setIsFormOpen(true); }} className="shrink-0 shadow-md shadow-indigo-100 bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg text-sm">
-                           <Plus size={16} className="mr-1.5" /> บันทึกรายการ
-                         </Button>
-                      </div>
-                   </div>
-                </Card>
+        <section className="game-panel overflow-hidden">
+          <div className="flex items-center justify-between border-b-2 border-[#2f3a3d] bg-[#f4e4b9]/55 px-5 py-4"><div><h3 className="font-bold text-slate-900">รายการของโครงการ</h3><p className="mt-0.5 text-xs text-slate-500">{projectTransactions.length} รายการ</p></div></div>
+          {projectTransactions.length ? <div className="divide-y divide-slate-100">{projectTransactions.map(transaction => {
+            const config = typeConfig[transaction.type]; const Icon = config.icon; const partner = data.partners.find(item => item.id === transaction.partnerId); const images = [transaction.receiptImage, transaction.receiptImage2, transaction.receiptImage3, transaction.receiptImage4].filter(Boolean) as string[];
+            return <div key={transaction.id} className="group p-4 sm:px-5"><div className="flex items-start gap-3"><span className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full ${config.color}`}><Icon size={17} /></span><div className="min-w-0 flex-1"><p className="text-sm font-semibold text-slate-800">{transaction.note || config.label}</p><div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] text-slate-500"><span className="flex items-center gap-1"><Calendar size={11} /> {new Date(transaction.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: 'numeric' })}</span><span>· {config.label}</span>{partner && <span>· {partner.name}</span>}{images.length > 0 && <span className="flex items-center gap-1">· <ImageIcon size={11} /> {images.length} รูป</span>}</div></div><div className="text-right"><p className={`font-bold ${transaction.type === TransactionType.EXPENSE ? 'text-rose-600' : 'text-teal-700'}`}>{transaction.type === TransactionType.EXPENSE ? '-' : '+'}{formatMoney(transaction.amount, 2)}</p><div className="mt-2 flex justify-end gap-1"><button onClick={() => openEditTransaction(transaction)} className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 hover:text-slate-700" aria-label="แก้ไข"><Pencil size={15} /></button><button onClick={() => deleteTransaction(transaction)} className="rounded-lg p-2 text-slate-400 hover:bg-rose-50 hover:text-rose-600" aria-label="ลบ"><Trash2 size={15} /></button></div></div></div>{images.length > 0 && <div className="ml-13 mt-3 flex gap-2 overflow-x-auto pl-[52px]">{images.map((image, index) => <button key={index} onClick={() => setPreviewImage(image)}><img src={image} alt={`เอกสาร ${index + 1}`} className="h-14 w-14 rounded-lg border border-slate-200 object-cover" /></button>)}</div>}</div>;
+          })}</div> : <div className="flex min-h-60 flex-col items-center justify-center p-6 text-center"><Wallet size={30} className="text-slate-300" /><p className="mt-3 font-semibold text-slate-600">ยังไม่มีรายการในโครงการนี้</p><button onClick={openNewTransaction} className="mt-3 text-sm font-semibold text-teal-700">เพิ่มรายการแรก</button></div>}
+        </section>
+      </>}
 
-                {/* Stat Cards */}
-                <div className="lg:col-span-4 grid grid-cols-3 gap-3">
-                   <div className="bg-emerald-50/50 p-3 rounded-xl border border-emerald-100 flex items-center justify-between">
-                      <div>
-                         <p className="text-[10px] font-bold text-emerald-600 uppercase tracking-wider mb-0.5">รายรับรวม</p>
-                         <p className="text-lg font-bold text-emerald-700">+{projectStats.income.toLocaleString()}</p>
-                      </div>
-                      <div className="w-8 h-8 bg-emerald-100 rounded-full flex items-center justify-center text-emerald-600">
-                         <TrendingUp size={16}/>
-                      </div>
-                   </div>
+      {showTransactionForm && selectedProject && <div className="fixed inset-0 z-50 flex items-end justify-center bg-[#2f3a3d]/45 p-0 backdrop-blur-[2px] sm:items-center sm:p-4" onMouseDown={event => event.target === event.currentTarget && setShowTransactionForm(false)}><div className="max-h-[94vh] w-full max-w-xl overflow-y-auto rounded-t-[16px] border-2 border-[#2f3a3d] bg-[#fffdf7] shadow-[5px_5px_0_#2f3a3d] sm:rounded-[16px]"><div className="sticky top-0 z-10 flex items-center justify-between border-b-2 border-[#2f3a3d] bg-[#f4e4b9] px-5 py-4"><div><h3 className="font-bold text-slate-900">{editingTransaction ? 'แก้ไขรายการ' : 'เพิ่มรายการ'}</h3><p className="mt-0.5 text-xs text-slate-500">{selectedProject.name}</p></div><button onClick={() => setShowTransactionForm(false)} className="rounded-[9px] border-2 border-[#2f3a3d] bg-[#fffdf7] p-2 text-slate-600"><X size={20} /></button></div>
+        <form onSubmit={saveTransaction} className="space-y-5 p-5">
+          <div className="grid grid-cols-3 gap-1.5 rounded-xl border-2 border-[#2f3a3d] bg-[#eee8da] p-1.5">{Object.entries(typeConfig).map(([value, config]) => <button key={value} type="button" onClick={() => { setType(value as TransactionType); setSource('POOL'); setSplitMode(false); }} className={`rounded-lg px-2 py-2.5 text-sm font-bold ${type === value ? 'bg-[#d96b5f] text-white' : 'text-[#687477]'}`}>{config.label}</button>)}</div>
+          <label className="block"><span className="text-sm font-bold text-slate-700">จำนวนเงิน</span><div className="relative mt-2"><input autoFocus type="number" min="0.01" step="0.01" inputMode="decimal" required value={amount} onChange={event => setAmount(event.target.value)} placeholder="0.00" className="min-h-16 w-full rounded-xl border-2 border-[#879092] bg-[#fffdf7] px-4 pr-16 text-right text-3xl font-bold text-[#2f3a3d] outline-none focus:border-[#2f3a3d] focus:ring-3 focus:ring-[#88aeb8]/25" /><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">บาท</span></div></label>
+          <div className="grid gap-4 sm:grid-cols-2"><Field label="วันที่"><input type="date" required value={date} onChange={event => setDate(event.target.value)} className="field-input" /></Field><Field label="รายละเอียด"><input value={note} onChange={event => setNote(event.target.value)} placeholder="เช่น ค่าวัสดุ หรือยอดขาย" className="field-input" /></Field></div>
+          {type === TransactionType.EXPENSE && !editingTransaction && <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><div><p className="text-sm font-semibold text-slate-700">แบ่งจ่ายหลายแหล่ง</p><p className="mt-0.5 text-xs text-slate-500">เช่น กองกลางและผู้ถือหุ้นช่วยกันจ่าย</p></div><button type="button" onClick={() => setSplitMode(value => !value)} className={`relative h-7 w-12 rounded-full transition-colors ${splitMode ? 'bg-teal-700' : 'bg-slate-200'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${splitMode ? 'translate-x-5' : 'translate-x-0'}`} /></button></div>}
+          {splitMode ? <div className="space-y-3 rounded-xl border border-teal-200 bg-teal-50/50 p-4"><div className="flex items-center justify-between"><p className="flex items-center gap-2 text-sm font-semibold text-teal-900"><Split size={15} /> ระบุยอดแต่ละแหล่ง</p><span className="text-xs text-teal-800">รวม {formatMoney(Object.values(splitAmounts).reduce((sum, value) => sum + Number(value || 0), 0), 2)} / {formatMoney(Number(amount || 0), 2)}</span></div>{sourceOptions.map(option => <label key={option.value} className="flex items-center gap-3"><span className="min-w-0 flex-1 truncate text-sm text-slate-700">{option.label}</span><input type="number" min="0" step="0.01" inputMode="decimal" value={splitAmounts[option.value] || ''} onChange={event => setSplitAmounts(current => ({ ...current, [option.value]: event.target.value }))} placeholder="0.00" className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-right text-sm outline-none focus:border-teal-600" /></label>)}</div> : <Field label={type === TransactionType.INVESTMENT ? 'ผู้ถือหุ้นที่ลงทุน' : type === TransactionType.INCOME ? 'เงินเข้าที่ไหน' : 'จ่ายจากแหล่งใด'}><select required={type === TransactionType.INVESTMENT} value={source} onChange={event => setSource(event.target.value)} className="field-input">{type === TransactionType.INVESTMENT && <option value="POOL" disabled>เลือกผู้ถือหุ้น</option>}{sourceOptions.filter(option => type !== TransactionType.INVESTMENT || option.value !== 'POOL').map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>}
+          <details className="rounded-xl border border-slate-200"><summary className="flex cursor-pointer list-none items-center justify-between px-4 py-3 text-sm font-semibold text-slate-700"><span className="flex items-center gap-2"><Camera size={16} /> แนบสลิปหรือใบเสร็จ <span className="font-normal text-slate-400">({receipts.length}/4)</span></span><ChevronRight size={16} /></summary><div className="border-t border-slate-100 p-4"><div className="flex flex-wrap gap-2">{receipts.map((image, index) => <div key={index} className="relative"><button type="button" onClick={() => setPreviewImage(image)}><img src={image} alt={`เอกสาร ${index + 1}`} className="h-20 w-20 rounded-xl border border-slate-200 object-cover" /></button><button type="button" onClick={() => setReceipts(current => current.filter((_, itemIndex) => itemIndex !== index))} className="absolute -right-1.5 -top-1.5 rounded-full bg-slate-900 p-1 text-white"><X size={11} /></button></div>)}{receipts.length < 4 && <label className="flex h-20 w-20 cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-slate-300 text-xs text-slate-500 hover:bg-slate-50">{processingImages ? <Loader2 size={18} className="animate-spin" /> : <><Plus size={18} /><span className="mt-1">เพิ่มรูป</span></>}<input type="file" accept="image/*" multiple className="hidden" onChange={addReceiptImages} disabled={processingImages} /></label>}</div><p className="mt-3 text-xs leading-5 text-slate-500">เลือกรูปพร้อมกันได้สูงสุด 4 รูป ระบบจะย่อรูปให้อัตโนมัติ</p></div></details>
+          <div className="sticky bottom-0 -mx-5 -mb-5 flex gap-3 border-t-2 border-[#2f3a3d] bg-[#fffdf7] p-5"><button type="button" onClick={() => setShowTransactionForm(false)} className="min-h-12 flex-1 rounded-xl border-2 border-[#2f3a3d] text-sm font-bold text-slate-700">ยกเลิก</button><button type="submit" disabled={!amount || processingImages} className="min-h-12 flex-[1.4] rounded-xl border-2 border-[#2f3a3d] bg-[#d96b5f] text-sm font-bold text-white shadow-[2px_2px_0_#2f3a3d] hover:bg-[#c95f54] disabled:opacity-50">{editingTransaction ? 'บันทึกการแก้ไข' : 'บันทึกรายการ'}</button></div>
+        </form></div></div>}
 
-                   <div className="bg-rose-50/50 p-3 rounded-xl border border-rose-100 flex items-center justify-between">
-                      <div>
-                         <p className="text-[10px] font-bold text-rose-600 uppercase tracking-wider mb-0.5">รายจ่ายรวม</p>
-                         <p className="text-lg font-bold text-rose-700">-{projectStats.expense.toLocaleString()}</p>
-                      </div>
-                      <div className="w-8 h-8 bg-rose-100 rounded-full flex items-center justify-center text-rose-600">
-                         <TrendingDown size={16}/>
-                      </div>
-                   </div>
-
-                   <div className="bg-indigo-50/50 p-3 rounded-xl border border-indigo-100 flex items-center justify-between">
-                      <div>
-                         <p className="text-[10px] font-bold text-indigo-600 uppercase tracking-wider mb-0.5">เงินลงทุน</p>
-                         <p className="text-lg font-bold text-indigo-700">+{projectStats.investment.toLocaleString()}</p>
-                      </div>
-                      <div className="w-8 h-8 bg-indigo-100 rounded-full flex items-center justify-center text-indigo-600">
-                         <DollarSign size={16}/>
-                      </div>
-                   </div>
-                </div>
-             </div>
-
-             {/* Content: List & Form */}
-             <div className="flex-1 flex flex-col gap-4 min-h-0">
-                
-                {/* Transaction List */}
-                <Card className="flex-1 flex flex-col min-h-[400px] overflow-hidden shadow-sm border-slate-200" title="รายการเคลื่อนไหว (Timeline)">
-                   <div className="flex-1 overflow-y-auto pr-1 custom-scrollbar p-1">
-                      {Object.keys(groupedTransactions).length === 0 ? (
-                        <div className="text-center py-20 text-slate-300 flex flex-col items-center">
-                          <div className="w-20 h-20 bg-slate-50 rounded-full flex items-center justify-center mb-4">
-                             <FileText size={40} className="opacity-20 text-slate-500"/>
-                          </div>
-                          <p className="text-lg font-medium text-slate-500">ยังไม่มีรายการบันทึก</p>
-                          <p className="text-sm text-slate-400 max-w-xs mx-auto mt-1">เริ่มบันทึกรายรับหรือรายจ่ายแรกของคุณได้ที่ปุ่ม "บันทึกรายการ" ด้านบน</p>
-                        </div>
-                      ) : (
-                        <div className="space-y-8 pb-10">
-                          {Object.entries(groupedTransactions).map(([date, transactions]) => (
-                            <div key={date} className="relative">
-                               {/* Date Header */}
-                               <div className="sticky top-0 z-10 flex items-center gap-4 mb-4 bg-white/95 backdrop-blur-sm py-2 border-b border-slate-50">
-                                  <div className="w-3 h-3 rounded-full bg-indigo-500 ring-4 ring-indigo-50"></div>
-                                  <span className="text-sm font-bold text-slate-700 bg-slate-100 px-3 py-1 rounded-full border border-slate-200">
-                                    {new Date(date).toLocaleDateString('th-TH', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })}
-                                  </span>
-                                  <div className="h-px flex-1 bg-slate-100"></div>
-                               </div>
-
-                               {/* Timeline Line */}
-                               <div className="absolute left-1.5 top-10 bottom-0 w-px bg-slate-100 -z-10"></div>
-
-                                  <div className="space-y-2 pl-6">
-                                     {transactions.map(t => {
-                                       const partner = data.partners.find(p => p.id === t.partnerId);
-                                       const isDirectPayment = t.type === TransactionType.EXPENSE && t.partnerId;
-                                       
-                                       return (
-                                       <div key={t.id} className={`relative flex flex-row items-center justify-between p-2.5 rounded-xl border transition-all duration-200 group gap-3 ${editingId === t.id ? 'bg-amber-50 border-amber-300 shadow-md ring-1 ring-amber-200' : 'bg-white border-slate-100 hover:border-indigo-200 hover:shadow-sm'}`}>
-                                          
-                                          {/* Connector Dot */}
-                                          <div className="absolute -left-[25px] top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-200 border border-white ring-1 ring-slate-100 group-hover:bg-indigo-400 transition-colors"></div>
-
-                                          {/* Left: Icon & Info */}
-                                          <div className="flex items-center gap-3 overflow-hidden flex-1 min-w-0">
-                                             <div className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 shadow-sm ${getTransactionColor(t.type)}`}>
-                                                {t.type === TransactionType.INCOME ? <Plus size={14} strokeWidth={3}/> : t.type === TransactionType.INVESTMENT ? <DollarSign size={14} strokeWidth={3}/> : <ArrowRight size={14} strokeWidth={3} className="-rotate-45"/>}
-                                             </div>
-                                             <div className="min-w-0 flex-1">
-                                                <div className="flex items-center gap-2 mb-0.5">
-                                                  <p className="font-bold text-slate-800 text-sm leading-tight truncate">
-                                                    {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
-                                                  </p>
-                                                  {/* Receipt Previews */}
-                                                  {[t.receiptImage, t.receiptImage2, t.receiptImage3, t.receiptImage4].some(img => img) && (
-                                                    <div className="flex items-center gap-1 ml-2">
-                                                      {[t.receiptImage, t.receiptImage2, t.receiptImage3, t.receiptImage4].map((img, idx) => img && (
-                                                        <div 
-                                                          key={idx}
-                                                          onClick={(e) => { e.stopPropagation(); setViewImage(img); }}
-                                                          className="relative w-8 h-8 rounded-md overflow-hidden border border-slate-200 cursor-pointer hover:ring-2 hover:ring-indigo-400 hover:scale-110 transition-all shadow-sm bg-slate-100 shrink-0"
-                                                          title={`ดูสลิป ${idx + 1}`}
-                                                        >
-                                                           <img src={img} alt="slip" className="w-full h-full object-cover" />
-                                                        </div>
-                                                      ))}
-                                                    </div>
-                                                  )}
-                                                </div>
-                                                
-                                                <div className="flex flex-wrap items-center gap-1.5">
-                                                   {partner ? (
-                                                      <span 
-                                                        className="flex items-center gap-1 text-[10px] font-bold px-1.5 py-0.5 rounded-md max-w-[100px] truncate border leading-none"
-                                                        style={{ backgroundColor: `${partner.color}10`, color: partner.color, borderColor: `${partner.color}20` }}
-                                                      >
-                                                        <div className="w-1 h-1 rounded-full" style={{backgroundColor: partner.color}}></div> {partner.name}
-                                                      </span>
-                                                   ) : (
-                                                      <span className="flex items-center gap-1 text-[10px] text-slate-500 font-bold bg-slate-50 px-1.5 py-0.5 rounded-md border border-slate-200 leading-none">
-                                                        <Wallet size={8}/> กองกลาง
-                                                      </span>
-                                                   )}
-
-                                                   {isDirectPayment && (
-                                                    <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md border border-indigo-100 font-bold whitespace-nowrap leading-none">
-                                                      จ่ายตรง
-                                                    </span>
-                                                   )}
-                                                </div>
-                                             </div>
-                                          </div>
-                                          
-                                          {/* Right: Amount & Actions */}
-                                          <div className="flex items-center gap-2 shrink-0">
-                                             <span className={`font-bold text-base tracking-tight ${
-                                               t.type === TransactionType.INCOME ? 'text-emerald-600' : 
-                                               t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-rose-600'
-                                             }`}>
-                                               {t.type === TransactionType.EXPENSE ? '-' : '+'}{t.amount.toLocaleString()}
-                                             </span>
-                                             
-                                             <div className="flex gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                                               <button
-                                                 onClick={(e) => { e.stopPropagation(); startEditing(t); }}
-                                                 className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-md transition-colors"
-                                                 title="แก้ไข"
-                                               >
-                                                 <Pencil size={12} />
-                                               </button>
-                                               <button 
-                                                 onClick={(e) => { e.stopPropagation(); onDeleteTransaction(t.id); }}
-                                                 className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-md transition-colors"
-                                                 title="ลบ"
-                                               >
-                                                 <Trash2 size={12} />
-                                               </button>
-                                             </div>
-                                          </div>
-                                       </div>
-                                     )})}
-                                  </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                   </div>
-                </Card>
-
-             </div>
-          </div>
-        ) : (
-           <div className="flex-1 flex flex-col items-center justify-center text-slate-300 min-h-[50vh]">
-              <div className="bg-slate-50 p-6 rounded-full mb-4">
-                 <FolderOpen size={48} className="opacity-40"/>
-              </div>
-              <p className="text-xl font-bold text-slate-400">เลือกโครงการ</p>
-              <p className="text-sm">เพื่อจัดการรายรับรายจ่าย</p>
-           </div>
-        )}
-      </div>
+      {previewImage && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 p-4" onClick={() => setPreviewImage(null)}><button className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white"><X size={22} /></button><img src={previewImage} alt="เอกสาร" className="max-h-full max-w-full rounded-xl object-contain" /></div>}
     </div>
-    
-    {/* Transaction Form Modal */}
-    {isFormOpen && (
-      <div className="fixed inset-0 z-40 bg-black/50 flex items-center justify-center p-4 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg max-h-[90vh] overflow-y-auto custom-scrollbar flex flex-col">
-          <div className="flex items-center justify-between p-5 border-b border-slate-100 sticky top-0 bg-white z-10">
-            <h3 className="text-xl font-bold text-slate-800">{editingId ? "แก้ไขรายการ" : "บันทึกรายการ"}</h3>
-            <button onClick={cancelEditing} className="text-slate-400 hover:text-slate-600 p-1 rounded-full hover:bg-slate-100 transition-colors">
-              <X size={24}/>
-            </button>
-          </div>
-          <div className="p-5">
-            <form onSubmit={handleFormSubmit} className="flex flex-col gap-5">
-               {/* Transaction Type Tabs */}
-               <div className="flex gap-2 p-1.5 bg-slate-100 rounded-xl overflow-x-auto no-scrollbar">
-                 {[
-                   { val: TransactionType.EXPENSE, label: 'รายจ่าย', color: '' },
-                   { val: TransactionType.INCOME, label: 'รายรับ', color: '' },
-                   { val: TransactionType.INVESTMENT, label: 'ลงทุน', color: '' },
-                 ].map(type => (
-                   <button
-                     key={type.val}
-                     type="button"
-                     onClick={() => {
-                        setTransType(type.val as TransactionType);
-                        if (type.val !== TransactionType.EXPENSE) setIsSplitMode(false);
-                     }}
-                     className={`flex-1 py-2 px-3 text-sm font-medium rounded-lg transition-all whitespace-nowrap ${
-                       transType === type.val 
-                         ? 'bg-white text-indigo-600 shadow-sm' 
-                         : 'text-slate-500 hover:text-slate-700'
-                     }`}
-                   >
-                     {type.label}
-                   </button>
-                 ))}
-               </div>
-
-               {/* Amount and Date */}
-               <Input 
-                 type="number" 
-                 placeholder="0.00" 
-                 label="จำนวนเงินรวม (THB)"
-                 value={transAmount}
-                 onChange={e => setTransAmount(e.target.value)}
-                 required
-                 className="font-mono text-2xl font-bold text-slate-800 text-right tracking-tight bg-slate-50 border-slate-200 focus:bg-white transition-all"
-               />
-
-               <Input 
-                 type="date" 
-                 label="วันที่"
-                 value={transDate}
-                 onChange={e => setTransDate(e.target.value)}
-                 required
-               />
-
-               <Input 
-                 placeholder="เช่น ค่าวัสดุ, ค่าเช่า..." 
-                 label="บันทึกช่วยจำ"
-                 value={transNote}
-                 onChange={e => setTransNote(e.target.value)}
-                 className="bg-slate-50 border-slate-200 focus:bg-white transition-all"
-               />
-
-               {/* Image Upload - Sequential */}
-               <div>
-                 <label className="text-sm font-medium text-slate-600 mb-2 block">รูปสลิป/ใบเสร็จ (สูงสุด 4 รูป)</label>
-                 <div className="flex flex-col gap-3">
-                   {/* Image 1 */}
-                   <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors">
-                      <div className="relative flex-1">
-                         <input 
-                           type="file" 
-                           accept="image/*" 
-                           onChange={(e) => handleImageChange(e, 1)}
-                           className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                         />
-                      </div>
-                      {isProcessingImage && (
-                        <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                          <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
-                        </div>
-                      )}
-                      {transImage && !isProcessingImage && (
-                         <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage)}>
-                            <img src={transImage} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview"/>
-                            <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage('');}}>
-                               <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                            </div>
-                         </div>
-                      )}
-                   </div>
-
-                   {/* Image 2 (Shows if Image 1 exists) */}
-                   {transImage && (
-                     <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors animate-in fade-in slide-in-from-top-2">
-                        <div className="relative flex-1">
-                           <input 
-                             type="file" 
-                             accept="image/*" 
-                             onChange={(e) => handleImageChange(e, 2)}
-                             className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                           />
-                        </div>
-                        {isProcessingImage2 && (
-                          <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                            <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
-                          </div>
-                        )}
-                        {transImage2 && !isProcessingImage2 && (
-                           <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage2)}>
-                              <img src={transImage2} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 2"/>
-                              <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage2('');}}>
-                                 <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                              </div>
-                           </div>
-                        )}
-                     </div>
-                   )}
-
-                   {/* Image 3 (Shows if Image 2 exists) */}
-                   {transImage2 && (
-                     <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors animate-in fade-in slide-in-from-top-2">
-                        <div className="relative flex-1">
-                           <input 
-                             type="file" 
-                             accept="image/*" 
-                             onChange={(e) => handleImageChange(e, 3)}
-                             className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                           />
-                        </div>
-                        {isProcessingImage3 && (
-                          <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                            <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
-                          </div>
-                        )}
-                        {transImage3 && !isProcessingImage3 && (
-                           <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage3)}>
-                              <img src={transImage3} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 3"/>
-                              <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage3('');}}>
-                                 <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                              </div>
-                           </div>
-                        )}
-                     </div>
-                   )}
-
-                   {/* Image 4 (Shows if Image 3 exists) */}
-                   {transImage3 && (
-                     <div className="flex items-center gap-3 p-3 border border-dashed border-slate-300 rounded-xl bg-slate-50/50 hover:bg-slate-50 transition-colors animate-in fade-in slide-in-from-top-2">
-                        <div className="relative flex-1">
-                           <input 
-                             type="file" 
-                             accept="image/*" 
-                             onChange={(e) => handleImageChange(e, 4)}
-                             className="w-full text-xs text-slate-500 file:mr-3 file:py-2 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-100 file:text-indigo-600 hover:file:bg-indigo-200 cursor-pointer"
-                           />
-                        </div>
-                        {isProcessingImage4 && (
-                          <div className="text-xs text-indigo-500 flex items-center gap-1 font-medium bg-white px-2 py-1 rounded-md shadow-sm border border-indigo-100">
-                            <Loader2 size={12} className="animate-spin"/> กำลังย่อ...
-                          </div>
-                        )}
-                        {transImage4 && !isProcessingImage4 && (
-                           <div className="w-12 h-12 shrink-0 relative group cursor-pointer" onClick={() => setViewImage(transImage4)}>
-                              <img src={transImage4} className="w-full h-full object-cover rounded-lg border border-slate-200 shadow-sm" alt="Preview 4"/>
-                              <div className="absolute -top-1.5 -right-1.5 bg-white rounded-full p-0.5 cursor-pointer shadow-md border border-slate-100 hover:bg-rose-50 hover:border-rose-200 transition-colors" onClick={(e) => {e.stopPropagation(); setTransImage4('');}}>
-                                 <X size={12} className="text-slate-500 hover:text-rose-500"/>
-                              </div>
-                           </div>
-                        )}
-                     </div>
-                   )}
-                 </div>
-               </div>
-
-               {/* Payment Source Logic */}
-               {transType === TransactionType.EXPENSE ? (
-                  <div className="flex flex-col gap-3 w-full pt-4 border-t border-slate-100 mt-2">
-                    {/* Label & Toggle */}
-                    <div className="flex justify-between items-center">
-                       <label className="text-sm font-medium text-slate-600">
-                         {editingId ? "แหล่งเงินที่จ่าย (แก้ไข)" : "แหล่งเงินที่จ่าย"}
-                       </label>
-                       <button 
-                         type="button"
-                         onClick={handleToggleSplitMode}
-                         className={`text-xs flex items-center gap-1 px-3 py-1.5 rounded-full transition-colors border shadow-sm ${isSplitMode ? 'bg-indigo-600 border-indigo-600 text-white font-bold' : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'}`}
-                       >
-                          <Split size={14}/> {isSplitMode ? 'จ่ายหลายทาง' : 'จ่ายทางเดียว'}
-                       </button>
-                    </div>
-
-                     {/* Split Mode */}
-                    {isSplitMode ? (
-                        <div className="bg-slate-50 p-4 rounded-xl space-y-3 border border-slate-200 max-h-72 overflow-y-auto custom-scrollbar shadow-inner">
-                           <div className="flex justify-between text-xs text-slate-500 mb-1 font-medium bg-white p-2 rounded-lg border border-slate-100 shadow-sm">
-                             <span>ยอดที่ต้องจ่าย</span>
-                             <span className={calculateSplitTotal() === parseFloat(transAmount || '0') ? 'text-emerald-600 font-bold' : 'text-rose-500 font-bold'}>
-                               {calculateSplitTotal().toLocaleString()} / {parseFloat(transAmount || '0').toLocaleString()}
-                             </span>
-                           </div>
-                           
-                           <div className="flex items-center gap-2">
-                              <div className="w-9 h-9 rounded-full bg-white border border-slate-200 flex items-center justify-center text-xs text-slate-600 shrink-0 shadow-sm"><Wallet size={16}/></div>
-                              <span className="text-sm font-medium text-slate-600 flex-1">กองกลาง</span>
-                              <input 
-                                type="number" 
-                                placeholder="0"
-                                className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
-                                value={splitAmounts['POOL'] || ''}
-                                onChange={e => setSplitAmounts(prev => ({...prev, 'POOL': e.target.value}))}
-                              />
-                           </div>
-
-                           {data.partners.map(p => (
-                             <div key={p.id} className="flex items-center gap-2">
-                               <div className="w-9 h-9 rounded-full flex items-center justify-center text-xs text-white shrink-0 shadow-sm ring-2 ring-white" style={{background: p.color}}>
-                                 {p.avatar}
-                               </div>
-                               <span className="text-sm font-medium text-slate-600 flex-1 truncate">{p.name}</span>
-                               <input 
-                                 type="number" 
-                                 placeholder="0"
-                                 className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
-                                 value={splitAmounts[p.id] || ''}
-                                 onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
-                               />
-                             </div>
-                           ))}
-                           
-                           {otherProjects.length > 0 && (
-                              <>
-                               <div className="text-[11px] text-slate-400 font-bold mt-3 pt-2 border-t border-slate-200">โครงการอื่น</div>
-                               {otherProjects.map(p => (
-                                 <div key={p.id} className="flex items-center gap-2">
-                                   <div className="w-9 h-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-600 shrink-0 shadow-sm">
-                                     <Building2 size={16}/>
-                                   </div>
-                                   <span className="text-sm font-medium text-slate-600 flex-1 truncate">{p.name}</span>
-                                   <input 
-                                     type="number" 
-                                     placeholder="0"
-                                     className="w-24 px-2 py-1.5 text-sm rounded-lg border border-slate-200 text-right bg-white focus:ring-2 focus:ring-indigo-100 outline-none shadow-sm"
-                                     value={splitAmounts[p.id] || ''}
-                                     onChange={e => setSplitAmounts(prev => ({...prev, [p.id]: e.target.value}))}
-                                   />
-                                 </div>
-                               ))}
-                              </>
-                           )}
-                        </div>
-                    ) : (
-                        // ... Single Select UI ...
-                        <div className="space-y-2">
-                          <select
-                              className={`w-full px-4 py-3 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all outline-none text-slate-800 ${transPartner === '' ? 'text-indigo-600 font-medium' : ''}`}
-                              value={transPartner}
-                              onChange={e => setTransPartner(e.target.value)}
-                            >
-                              {sourceOptions.map((opt, idx) => (
-                                <option key={idx} value={opt.value} disabled={opt.disabled}>
-                                  {opt.label}
-                                </option>
-                              ))}
-                          </select>
-                        </div>
-                    )}
-                  </div>
-               ) : (
-                  /* Select for other types */
-                  <Select 
-                    label={transType === TransactionType.INVESTMENT ? "หุ้นส่วนที่ลงทุน" : transType === TransactionType.INCOME ? "เก็บเงินไว้ที่" : "หุ้นส่วน"}
-                    options={[
-                      { value: '', label: transType === TransactionType.INVESTMENT ? '-- เลือกหุ้นส่วน --' : 'กองกลาง (Central Pool)' },
-                      ...data.partners.map(p => ({ value: p.id, label: p.name }))
-                    ]}
-                    value={transPartner}
-                    onChange={e => setTransPartner(e.target.value)}
-                    required={transType === TransactionType.INVESTMENT} 
-                    className={transPartner === '' ? 'text-slate-500 italic' : ''}
-                  />
-               )}
-               
-               <div className="flex gap-3 mt-4 pt-4 border-t border-slate-100 sticky bottom-0 bg-white pb-2">
-                  <Button type="button" variant="secondary" className="flex-1" onClick={cancelEditing}>
-                     ยกเลิก
-                  </Button>
-                  <Button type="submit" className={`flex-1 py-3 text-base font-medium shadow-md shadow-indigo-200 ${isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4 ? 'opacity-80 cursor-wait' : ''}`} disabled={!transAmount || isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4}>
-                    {isProcessingImage || isProcessingImage2 || isProcessingImage3 || isProcessingImage4 ? 'กำลังเตรียมรูป...' : editingId ? 'บันทึกแก้ไข' : 'เพิ่มรายการ'}
-                  </Button>
-               </div>
-            </form>
-          </div>
-        </div>
-      </div>
-    )}
-    </>
   );
 };
+
+const Summary = ({ label, value, primary, positive, negative }: { label: string; value: number; primary?: boolean; positive?: boolean; negative?: boolean }) => <div className={`rounded-xl border-2 p-3 ${primary ? 'border-[#2f3a3d] bg-[#dce9e1]' : 'border-[#cfd4cd] bg-[#fffdf7]'}`}><p className="text-xs font-semibold text-slate-500">{label}</p><p className={`number-display mt-1 truncate text-lg font-bold ${negative ? 'text-rose-600' : positive ? 'text-[#3f6350]' : 'text-slate-900'}`}>{formatMoney(value)}</p><p className="text-[10px] text-slate-400">บาท</p></div>;
+const Field = ({ label, children }: { label: string; children: React.ReactNode }) => <label className="block"><span className="mb-2 block text-sm font-semibold text-slate-700">{label}</span>{children}</label>;
+const ProjectForm = ({ name, description, setName, setDescription, onSubmit, onCancel }: { name: string; description: string; setName: (value: string) => void; setDescription: (value: string) => void; onSubmit: (event: React.FormEvent) => void; onCancel?: () => void }) => <form onSubmit={onSubmit} className="mt-5 grid gap-3 text-left sm:grid-cols-[1fr_1.2fr_auto]"><input autoFocus required value={name} onChange={event => setName(event.target.value)} placeholder="ชื่อโครงการ" className="field-input" /><input value={description} onChange={event => setDescription(event.target.value)} placeholder="รายละเอียดสั้นๆ (ไม่บังคับ)" className="field-input" /><div className="flex gap-2">{onCancel && <button type="button" onClick={onCancel} className="min-h-11 rounded-xl border-2 border-[#2f3a3d] px-3 text-sm font-bold text-slate-600">ยกเลิก</button>}<button type="submit" className="inline-flex min-h-11 flex-1 items-center justify-center gap-2 rounded-xl border-2 border-[#2f3a3d] bg-[#d96b5f] px-4 text-sm font-bold text-white shadow-[2px_2px_0_#2f3a3d]"><Check size={16} /> สร้าง</button></div></form>;

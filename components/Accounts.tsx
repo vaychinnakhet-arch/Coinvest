@@ -1,585 +1,230 @@
-import React, { useState, useMemo } from 'react';
-import { AppState, TransactionType } from '../types';
-import { Card, Select, Input, Button } from './ui/Components';
-import { FileText, TrendingUp, TrendingDown, DollarSign, Search, Filter, Wallet, ArrowDownUp, ArrowUp, ArrowDown, Download, Loader2, Building2, Calendar } from 'lucide-react';
+import React, { useMemo, useRef, useState } from 'react';
+import {
+  ArrowDown,
+  ArrowDownUp,
+  ArrowUp,
+  Calendar,
+  Download,
+  FileText,
+  Filter,
+  Loader2,
+  Search,
+  Wallet,
+  X,
+} from 'lucide-react';
+import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
+import { AppState, Transaction, TransactionType } from '../types';
+import { formatMoney, getCashImpact, getFinancialSummary } from '../services/finance';
 
-interface AccountsProps {
-  data: AppState;
-}
+interface AccountsProps { data: AppState; }
+type TransactionWithBalance = Transaction & { balance: number };
+
+const typeLabels: Record<TransactionType, string> = {
+  [TransactionType.INCOME]: 'รายรับ',
+  [TransactionType.EXPENSE]: 'รายจ่าย',
+  [TransactionType.INVESTMENT]: 'เงินลงทุน',
+};
 
 export const Accounts: React.FC<AccountsProps> = ({ data }) => {
-  const [filterProject, setFilterProject] = useState<string>('all');
-  const [filterType, setFilterType] = useState<string>('all');
-  const [startDate, setStartDate] = useState<string>('');
-  const [endDate, setEndDate] = useState<string>('');
-  const [searchQuery, setSearchQuery] = useState<string>('');
+  const [filterProject, setFilterProject] = useState('all');
+  const [filterType, setFilterType] = useState('all');
+  const [startDate, setStartDate] = useState('');
+  const [endDate, setEndDate] = useState('');
+  const [searchQuery, setSearchQuery] = useState('');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
   const [isExporting, setIsExporting] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const pdfRef = useRef<HTMLDivElement>(null);
 
-  // Process Transactions: Filter -> Sort Asc -> Calculate Balance -> Filter Date -> Sort Desc/Asc
   const processedTransactions = useMemo(() => {
-    // 1. Initial Filter (Project, Type, Search) - NOT Date yet
-    let filtered = data.transactions.filter(t => {
-      // Project Filter
-      if (filterProject !== 'all' && t.projectId !== filterProject) return false;
-      
-      // Type Filter
-      if (filterType !== 'all' && t.type !== filterType) return false;
+    const scoped = data.transactions
+      .filter(t => filterProject === 'all' || t.projectId === filterProject)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
-      // Search Query
+    let runningBalance = 0;
+    const withBalance: TransactionWithBalance[] = scoped.map(transaction => {
+      runningBalance += getCashImpact(transaction);
+      return { ...transaction, balance: runningBalance };
+    });
+
+    const visible = withBalance.filter(transaction => {
+      if (filterType !== 'all' && transaction.type !== filterType) return false;
+      if (startDate && transaction.date < startDate) return false;
+      if (endDate && transaction.date > endDate) return false;
       if (searchQuery) {
-        const query = searchQuery.toLowerCase();
-        const noteMatch = t.note?.toLowerCase().includes(query);
-        const amountMatch = t.amount.toString().includes(query);
-        if (!noteMatch && !amountMatch) return false;
+        const search = searchQuery.trim().toLowerCase();
+        const project = data.projects.find(p => p.id === transaction.projectId)?.name || '';
+        const partner = data.partners.find(p => p.id === transaction.partnerId)?.name || '';
+        if (![transaction.note, project, partner, transaction.amount.toString()].some(value => value.toLowerCase().includes(search))) return false;
       }
-
       return true;
     });
 
-    // 2. Sort by Date Ascending (Oldest First) for accurate running balance calculation
-    filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+    return sortOrder === 'desc' ? visible.reverse() : visible;
+  }, [data, filterProject, filterType, startDate, endDate, searchQuery, sortOrder]);
 
-    // 3. Calculate Running Balance
-    let runningBalance = 0;
-    const withBalance = filtered.map(t => {
-      const isExpense = t.type === TransactionType.EXPENSE;
-      // Investment and Income are positive, Expense is negative
-      if (isExpense) {
-        runningBalance -= t.amount;
-      } else {
-        runningBalance += t.amount;
-      }
-      return { ...t, balance: runningBalance };
-    });
+  const summary = useMemo(() => getFinancialSummary({ transactions: processedTransactions }, processedTransactions), [processedTransactions]);
+  const activeFilterCount = [filterProject !== 'all', filterType !== 'all', Boolean(startDate), Boolean(endDate), Boolean(searchQuery)].filter(Boolean).length;
 
-    // 4. Filter by Date Range (if applied)
-    let result = withBalance;
-    if (startDate) {
-      result = result.filter(t => t.date >= startDate);
-    }
-    if (endDate) {
-      result = result.filter(t => t.date <= endDate);
-    }
-
-    // 5. Final Sort based on user preference
-    if (sortOrder === 'desc') {
-      return result.reverse();
-    }
-    return result;
-  }, [data.transactions, filterProject, filterType, startDate, endDate, searchQuery, sortOrder]);
-
-  // Calculate Summary (based on the final view)
-  const summary = useMemo(() => {
-    let income = 0;
-    let expense = 0;
-    let investment = 0;
-
-    // Helper to detect internal transfers (Loans/Transfers between projects)
-    const isInternalTransfer = (note: string) => {
-      if (!note) return false;
-      return /(?:\(ให้ยืม\/โอนไปโครงการ:|\(รับเงินยืม\/โอนจากโครงการ:|\(ปรับปรุงรายการ\) โอนไปโครงการ:|\(ปรับปรุงรายการ\) รับเงินโอนจากโครงการ:)/.test(note);
-    };
-
-    // We use the processed transactions (which respect date filters) for the summary cards
-    processedTransactions.forEach(t => {
-      // Skip internal transfers for Income/Expense totals to show "Real" operational figures
-      if (isInternalTransfer(t.note)) {
-        return;
-      }
-
-      if (t.type === TransactionType.INCOME) income += t.amount;
-      else if (t.type === TransactionType.EXPENSE) expense += t.amount;
-      else if (t.type === TransactionType.INVESTMENT) investment += t.amount;
-    });
-
-    // Current Balance is the balance of the *latest* transaction in time
-    // We do NOT filter internal transfers for balance, as they affect actual cash availability
-    let currentBalance = 0;
-    if (processedTransactions.length > 0) {
-        if (sortOrder === 'desc') {
-            // Newest is at index 0
-            currentBalance = processedTransactions[0].balance;
-        } else {
-            // Newest is at the end
-            currentBalance = processedTransactions[processedTransactions.length - 1].balance;
-        }
-    }
-
-    return { income, expense, investment, currentBalance };
-  }, [processedTransactions, sortOrder]);
-
-  const formatCurrency = (val: number) => {
-    return new Intl.NumberFormat('th-TH', { style: 'decimal', minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(val);
+  const resetFilters = () => {
+    setFilterProject('all');
+    setFilterType('all');
+    setStartDate('');
+    setEndDate('');
+    setSearchQuery('');
   };
 
   const exportToPDF = async () => {
+    if (!pdfRef.current || processedTransactions.length === 0) return;
     setIsExporting(true);
     try {
-        const doc = new jsPDF();
-
-        // Helper to fix Thai vowel overlapping (For THSarabunNew)
-        const preprocessThaiText = (text: string) => {
-            if (!text) return "";
-            let res = text.toString();
-            // Remove zero-width spaces that might interfere
-            res = res.replace(/[\u200B-\u200D\uFEFF]/g, '');
-            
-            // Basic fix for upper vowels + tone marks (Shift tone mark up)
-            // This uses standard PUA codes that are generally supported by THSarabunNew
-            const toneUpMap: Record<string, string> = {
-                '\u0E48': '\uF70A', // Mai Ek
-                '\u0E49': '\uF70B', // Mai Tho
-                '\u0E4A': '\uF70C', // Mai Tri
-                '\u0E4B': '\uF70D', // Mai Chattawa
-                '\u0E4C': '\uF70E'  // Thanthakhat
-            };
-            const upperVowels = '[\u0E31\u0E34\u0E35\u0E36\u0E37\u0E47\u0E4D]';
-            res = res.replace(new RegExp(`(${upperVowels})([\u0E48\u0E49\u0E4A\u0E4B\u0E4C])`, 'g'), (m, v, t) => v + toneUpMap[t]);
-
-            // Fix Low Consonant + Lower Vowel (Remove Tail)
-            res = res.replace(/\u0E0D([\u0E38\u0E39\u0E3A])/g, '\uF70F$1'); // ญ
-            res = res.replace(/\u0E0E([\u0E38\u0E39\u0E3A])/g, '\uF700$1'); // ฐ
-
-            return res;
-        };
-
-        // Use THSarabunNew as primary font because it supports PUA glyphs for fixing overlapping
-        const fontName = 'THSarabunNew';
-        const fontUrl = 'https://unpkg.com/font-th-sarabun-new@1.0.0/fonts/THSarabunNew-webfont.ttf';
-        const fontBoldUrl = 'https://unpkg.com/font-th-sarabun-new@1.0.0/fonts/THSarabunNew_bold-webfont.ttf';
-        
-        try {
-            // Load Normal Font
-            const fontResponse = await fetch(fontUrl);
-            if (!fontResponse.ok) throw new Error('Failed to fetch THSarabunNew');
-            const fontBlob = await fontResponse.blob();
-            const reader = new FileReader();
-            
-            await new Promise((resolve, reject) => {
-                reader.onloadend = () => resolve(reader.result);
-                reader.onerror = reject;
-                reader.readAsDataURL(fontBlob);
-            }).then((result) => {
-                const base64data = result as string;
-                const fontBase64 = base64data.split(',')[1];
-                doc.addFileToVFS('THSarabunNew.ttf', fontBase64);
-                doc.addFont('THSarabunNew.ttf', 'THSarabunNew', 'normal');
-            });
-
-            // Load Bold Font
-            const fontBoldResponse = await fetch(fontBoldUrl);
-            if (fontBoldResponse.ok) {
-                const fontBoldBlob = await fontBoldResponse.blob();
-                const readerBold = new FileReader();
-                await new Promise((resolve, reject) => {
-                    readerBold.onloadend = () => resolve(readerBold.result);
-                    readerBold.onerror = reject;
-                    readerBold.readAsDataURL(fontBoldBlob);
-                }).then((result) => {
-                    const base64data = result as string;
-                    const fontBase64 = base64data.split(',')[1];
-                    doc.addFileToVFS('THSarabunNew-Bold.ttf', fontBase64);
-                    doc.addFont('THSarabunNew-Bold.ttf', 'THSarabunNew', 'bold');
-                });
-            }
-        } catch (e) {
-            console.error("Failed to load font", e);
-            alert("ไม่สามารถโหลดฟอนต์ภาษาไทยได้");
-            setIsExporting(false);
-            return;
-        }
-
-        doc.setFont('THSarabunNew', 'normal');
-
-        // --- Beautiful Header ---
-        // Top colored bar
-        doc.setFillColor(79, 70, 229); // Indigo 600
-        doc.rect(0, 0, 210, 20, 'F');
-        
-        // Title
-        doc.setTextColor(255, 255, 255);
-        doc.setFontSize(18);
-        doc.setFont('THSarabunNew', 'bold');
-        doc.text(preprocessThaiText('รายงานสรุปบัญชีรายรับ-รายจ่าย'), 15, 13);
-        
-        // Subtitle (Date Range / Project)
-        doc.setFontSize(11);
-        doc.setFont('THSarabunNew', 'normal');
-        let subtitle = `โครงการ: ${filterProject === 'all' ? 'ทั้งหมด' : data.projects.find(p => p.id === filterProject)?.name}`;
-        if (startDate || endDate) {
-            subtitle += ` | วันที่: ${startDate ? new Date(startDate).toLocaleDateString('th-TH') : 'เริ่มต้น'} - ${endDate ? new Date(endDate).toLocaleDateString('th-TH') : 'ปัจจุบัน'}`;
-        }
-        doc.text(preprocessThaiText(subtitle), 15, 18);
-
-        // --- Summary Cards ---
-        const startY = 25;
-        const cardWidth = 50;
-        const cardHeight = 16;
-        const gap = 4;
-        
-        // Income Card
-        doc.setFillColor(236, 253, 245); // Emerald 50
-        doc.setDrawColor(16, 185, 129); // Emerald 500
-        doc.roundedRect(15, startY, cardWidth, cardHeight, 1.5, 1.5, 'FD');
-        doc.setTextColor(100, 116, 139); // Slate 500
-        doc.setFontSize(10);
-        doc.text(preprocessThaiText('รายรับรวม (Income)'), 18, startY + 6);
-        doc.setTextColor(5, 150, 105); // Emerald 600
-        doc.setFontSize(14);
-        doc.setFont('THSarabunNew', 'bold');
-        doc.text(preprocessThaiText('+' + formatCurrency(summary.income)), 18, startY + 13);
-
-        // Expense Card
-        doc.setFillColor(255, 241, 242); // Rose 50
-        doc.setDrawColor(244, 63, 94); // Rose 500
-        doc.roundedRect(15 + cardWidth + gap, startY, cardWidth, cardHeight, 1.5, 1.5, 'FD');
-        doc.setTextColor(100, 116, 139);
-        doc.setFontSize(10);
-        doc.setFont('THSarabunNew', 'normal');
-        doc.text(preprocessThaiText('รายจ่ายรวม (Expense)'), 18 + cardWidth + gap, startY + 6);
-        doc.setTextColor(225, 29, 72); // Rose 600
-        doc.setFontSize(14);
-        doc.setFont('THSarabunNew', 'bold');
-        doc.text(preprocessThaiText('-' + formatCurrency(summary.expense)), 18 + cardWidth + gap, startY + 13);
-
-        // Balance Card
-        const isPositive = summary.currentBalance >= 0;
-        doc.setFillColor(isPositive ? 248 : 255, isPositive ? 250 : 241, isPositive ? 252 : 242); // Slate 50 or Rose 50
-        doc.setDrawColor(isPositive ? 71 : 244, isPositive ? 85 : 63, isPositive ? 105 : 94); // Slate 600 or Rose 500
-        doc.roundedRect(15 + (cardWidth + gap) * 2, startY, cardWidth + 10, cardHeight, 1.5, 1.5, 'FD');
-        doc.setTextColor(100, 116, 139);
-        doc.setFontSize(10);
-        doc.setFont('THSarabunNew', 'normal');
-        doc.text(preprocessThaiText('ยอดคงเหลือ (Balance)'), 18 + (cardWidth + gap) * 2, startY + 6);
-        doc.setTextColor(isPositive ? 15 : 225, isPositive ? 23 : 29, isPositive ? 42 : 72); // Slate 900 or Rose 600
-        doc.setFontSize(14);
-        doc.setFont('THSarabunNew', 'bold');
-        doc.text(preprocessThaiText(formatCurrency(summary.currentBalance)), 18 + (cardWidth + gap) * 2, startY + 13);
-
-        // --- Transactions Table ---
-        const tableColumn = ["วันที่", "รายการ", "โครงการ", "รายรับ", "รายจ่าย", "คงเหลือ"].map(preprocessThaiText);
-        const tableRows: any[] = [];
-
-        processedTransactions.forEach(t => {
-            const project = data.projects.find(p => p.id === t.projectId)?.name || '-';
-            const income = t.type === TransactionType.INCOME || t.type === TransactionType.INVESTMENT ? formatCurrency(t.amount) : '-';
-            const expense = t.type === TransactionType.EXPENSE ? formatCurrency(t.amount) : '-';
-            const balance = formatCurrency(t.balance);
-
-            tableRows.push([
-                preprocessThaiText(new Date(t.date).toLocaleDateString('th-TH')),
-                preprocessThaiText(t.note),
-                preprocessThaiText(project),
-                preprocessThaiText(income),
-                preprocessThaiText(expense),
-                preprocessThaiText(balance)
-            ]);
+      await document.fonts.ready;
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const pages = Array.from(pdfRef.current.querySelectorAll<HTMLElement>('[data-pdf-page]'));
+      for (let index = 0; index < pages.length; index += 1) {
+        const canvas = await html2canvas(pages[index], {
+          backgroundColor: '#ffffff',
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          windowWidth: 794,
         });
-
-        autoTable(doc, {
-            startY: startY + cardHeight + 6,
-            head: [tableColumn],
-            body: tableRows,
-            styles: { 
-                font: fontName, 
-                fontSize: 10, // Reduced font size to prevent wrapping
-                cellPadding: { top: 3, bottom: 2, left: 2, right: 2 }, // Tighter padding, more top padding for tone marks
-                textColor: [51, 65, 85], // Slate 700
-                lineColor: [226, 232, 240], // Slate 200
-                lineWidth: 0.1,
-            },
-            headStyles: { 
-                fillColor: [79, 70, 229], // Indigo 600
-                textColor: [255, 255, 255],
-                font: fontName, 
-                fontStyle: 'bold', 
-                fontSize: 11,
-                halign: 'center',
-                cellPadding: { top: 4, bottom: 3, left: 2, right: 2 }
-            },
-            alternateRowStyles: {
-                fillColor: [248, 250, 252] // Slate 50
-            },
-            columnStyles: {
-                0: { cellWidth: 20, halign: 'center' }, // Date
-                1: { cellWidth: 'auto' }, // Note
-                2: { cellWidth: 30 }, // Project
-                3: { cellWidth: 22, halign: 'right', textColor: [5, 150, 105] }, // Income
-                4: { cellWidth: 22, halign: 'right', textColor: [225, 29, 72] }, // Expense
-                5: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }, // Balance
-            },
-            didParseCell: (data) => {
-                if (data.section === 'head' && (data.column.index === 3 || data.column.index === 4 || data.column.index === 5)) {
-                    data.cell.styles.halign = 'right';
-                }
-            },
-            didDrawPage: (data) => {
-                // Footer
-                const str = 'หน้า ' + doc.internal.getNumberOfPages();
-                doc.setFontSize(10);
-                doc.setFont('THSarabunNew', 'normal');
-                doc.setTextColor(148, 163, 184); // Slate 400
-                doc.text(preprocessThaiText(str), data.settings.margin.left, doc.internal.pageSize.height - 10);
-                
-                const dateStr = 'พิมพ์เมื่อ: ' + new Date().toLocaleString('th-TH');
-                doc.text(preprocessThaiText(dateStr), doc.internal.pageSize.width - data.settings.margin.right, doc.internal.pageSize.height - 10, { align: 'right' });
-            }
-        });
-
-        doc.save(`Statement_${new Date().getTime()}.pdf`);
-        setIsExporting(false);
-
+        if (index > 0) doc.addPage();
+        doc.addImage(canvas.toDataURL('image/jpeg', 0.95), 'JPEG', 0, 0, 210, 297, undefined, 'FAST');
+      }
+      doc.save(`CoInvest_Statement_${new Date().toISOString().slice(0, 10)}.pdf`);
     } catch (error) {
-        console.error("Export failed", error);
-        alert("ขออภัย ไม่สามารถสร้าง PDF ได้ในขณะนี้");
-        setIsExporting(false);
+      console.error('PDF export failed', error);
+      alert('สร้าง PDF ไม่สำเร็จ กรุณาลองใหม่อีกครั้ง');
+    } finally {
+      setIsExporting(false);
     }
   };
 
-  const formatDate = (dateStr: string) => {
-    return new Intl.DateTimeFormat('th-TH', { year: '2-digit', month: 'short', day: 'numeric' }).format(new Date(dateStr));
-  };
-
   return (
-    <div className="space-y-6 animate-in fade-in duration-500 pb-10">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800">บัญชีรายรับ-รายจ่าย</h2>
-          <p className="text-slate-500 text-sm mt-1">รายการเดินบัญชี (Statement) และยอดคงเหลือ</p>
+    <div className="space-y-5 pb-24 md:pb-8">
+      <section className="grid grid-cols-3 gap-3 md:grid-cols-[1.35fr_repeat(3,1fr)]">
+        <div className="game-panel col-span-3 bg-[#dce9e1] p-5 md:col-span-1">
+          <div className="flex items-center gap-2 text-xs font-bold text-[#3f6350]"><Wallet size={16} /> เงินคงเหลือพร้อมใช้</div>
+          <p className={`number-display mt-2 text-3xl font-bold ${summary.availableCash >= 0 ? 'text-[#2f3a3d]' : 'text-rose-700'}`}>{formatMoney(summary.availableCash)} <span className="text-base font-semibold">บาท</span></p>
+          <p className="mt-2 text-xs text-slate-600">เงินผู้ถือหุ้น {formatMoney(summary.shareholderFunds)} + สุทธิ {formatMoney(summary.netCashFlow)}</p>
         </div>
-      </div>
+        <Metric label="เงินลงทุน" value={summary.totalInvestment} tone="blue" />
+        <Metric label="รายรับ" value={summary.totalIncome} tone="green" />
+        <Metric label="รายจ่าย" value={summary.totalExpense} tone="red" />
+      </section>
 
-      {/* Summary Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-        <Card className="bg-white border-slate-100 shadow-sm !p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="p-2.5 bg-emerald-50 text-emerald-600 rounded-xl"><TrendingUp size={20}/></div>
-            <span className="text-sm font-semibold text-slate-500">รายรับ (Income)</span>
+      <section className="game-panel p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+            <input value={searchQuery} onChange={e => setSearchQuery(e.target.value)} placeholder="ค้นหาชื่อรายการ โครงการ หรือจำนวนเงิน" className="min-h-11 w-full rounded-xl border-2 border-[#879092] bg-[#fffdf7] pl-10 pr-4 text-sm outline-none focus:border-[#2f3a3d] focus:ring-3 focus:ring-[#88aeb8]/25" />
           </div>
-          <h3 className="text-2xl font-bold text-slate-800 tracking-tight">+{formatCurrency(summary.income)}</h3>
-        </Card>
-        
-        <Card className="bg-white border-slate-100 shadow-sm !p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="p-2.5 bg-rose-50 text-rose-600 rounded-xl"><TrendingDown size={20}/></div>
-            <span className="text-sm font-semibold text-slate-500">รายจ่าย (Expense)</span>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-800 tracking-tight">-{formatCurrency(summary.expense)}</h3>
-        </Card>
-
-        <Card className="bg-white border-slate-100 shadow-sm !p-6 relative overflow-hidden group hover:shadow-md transition-all duration-300">
-          <div className="flex items-center gap-4 mb-2">
-            <div className="p-2.5 bg-indigo-50 text-indigo-600 rounded-xl"><DollarSign size={20}/></div>
-            <span className="text-sm font-semibold text-slate-500">เงินลงทุน (Invest)</span>
-          </div>
-          <h3 className="text-2xl font-bold text-slate-800 tracking-tight">+{formatCurrency(summary.investment)}</h3>
-        </Card>
-
-        <Card className={`!p-6 border shadow-sm relative overflow-hidden group hover:shadow-md transition-all duration-300 ${summary.currentBalance >= 0 ? 'bg-slate-900 text-white border-transparent' : 'bg-rose-600 text-white border-rose-600'}`}>
-          <div className="flex items-center gap-4 mb-2">
-            <div className={`p-2.5 rounded-xl ${summary.currentBalance >= 0 ? 'bg-white/10 text-white' : 'bg-white/20 text-white'}`}><Wallet size={20}/></div>
-            <span className={`text-sm font-semibold ${summary.currentBalance >= 0 ? 'text-slate-300' : 'text-white/90'}`}>ยอดคงเหลือ (Balance)</span>
-          </div>
-          <h3 className="text-2xl font-bold tracking-tight">{formatCurrency(summary.currentBalance)}</h3>
-        </Card>
-      </div>
-
-      {/* Filters */}
-      <Card className="bg-white border-slate-200 shadow-sm p-5">
-        <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-4 mb-4">
-           <div className="flex items-center gap-2 text-slate-700 font-bold">
-             <Filter size={18} className="text-indigo-500"/> ตัวกรองข้อมูล
-           </div>
-             <div className="flex items-center gap-2">
-             <button 
-               onClick={exportToPDF}
-               disabled={isExporting}
-               className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 text-indigo-600 rounded-lg transition-colors border border-indigo-200 disabled:opacity-50 disabled:cursor-not-allowed"
-             >
-               {isExporting ? <Loader2 size={14} className="animate-spin"/> : <Download size={14}/>}
-               {isExporting ? 'กำลังสร้าง...' : 'ส่งออก PDF'}
-             </button>
-             <button 
-               onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}
-               className="flex items-center gap-2 text-xs font-medium px-3 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors"
-             >
-               <ArrowDownUp size={14}/>
-               เรียงวันที่: {sortOrder === 'desc' ? 'ใหม่ -> เก่า' : 'เก่า -> ใหม่'}
-             </button>
-           </div>
-        </div>
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4">
-          <div className="lg:col-span-2">
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18}/>
-              <input 
-                type="text" 
-                placeholder="ค้นหารายการ..." 
-                value={searchQuery}
-                onChange={e => setSearchQuery(e.target.value)}
-                className="w-full pl-10 pr-4 py-2.5 rounded-xl border border-slate-200 bg-slate-50 focus:bg-white focus:border-indigo-400 focus:ring-2 focus:ring-indigo-100 transition-all outline-none text-sm"
-              />
-            </div>
-          </div>
-          <Select 
-            value={filterProject}
-            onChange={e => setFilterProject(e.target.value)}
-            options={[
-              { value: 'all', label: 'ทุกโครงการ' },
-              ...data.projects.map(p => ({ value: p.id, label: p.name }))
-            ]}
-          />
-          <Select 
-            value={filterType}
-            onChange={e => setFilterType(e.target.value)}
-            options={[
-              { value: 'all', label: 'ทุกประเภท' },
-              { value: TransactionType.INCOME, label: 'รายรับ' },
-              { value: TransactionType.EXPENSE, label: 'รายจ่าย' },
-              { value: TransactionType.INVESTMENT, label: 'ลงทุน' }
-            ]}
-          />
-          <div className="flex gap-2">
-            <Input 
-              type="date" 
-              value={startDate} 
-              onChange={e => setStartDate(e.target.value)}
-              className="text-xs !py-2"
-              title="ตั้งแต่วันที่"
-            />
-            <Input 
-              type="date" 
-              value={endDate} 
-              onChange={e => setEndDate(e.target.value)}
-              className="text-xs !py-2"
-              title="ถึงวันที่"
-            />
+          <div className="flex flex-wrap gap-2">
+            <button onClick={() => setShowFilters(value => !value)} className={`inline-flex min-h-11 items-center gap-2 rounded-xl border px-3 text-sm font-semibold ${showFilters || activeFilterCount ? 'border-teal-300 bg-teal-50 text-teal-800' : 'border-slate-300 text-slate-700'}`}>
+              <Filter size={16} /> ตัวกรอง {activeFilterCount > 0 && <span className="rounded-full bg-teal-700 px-1.5 text-[10px] text-white">{activeFilterCount}</span>}
+            </button>
+            <button onClick={() => setSortOrder(value => value === 'desc' ? 'asc' : 'desc')} className="inline-flex min-h-11 items-center gap-2 rounded-xl border border-slate-300 px-3 text-sm font-semibold text-slate-700">
+              <ArrowDownUp size={16} /> {sortOrder === 'desc' ? 'ล่าสุดก่อน' : 'เก่าสุดก่อน'}
+            </button>
+            <button onClick={exportToPDF} disabled={isExporting || processedTransactions.length === 0} className="pressable inline-flex min-h-11 items-center gap-2 rounded-xl border-2 border-[#2f3a3d] bg-[#d96b5f] px-4 text-sm font-bold text-white shadow-[2px_2px_0_#2f3a3d] hover:bg-[#c95f54] disabled:opacity-50">
+              {isExporting ? <Loader2 size={16} className="animate-spin" /> : <Download size={16} />} {isExporting ? 'กำลังสร้าง' : 'ส่งออก PDF'}
+            </button>
           </div>
         </div>
-      </Card>
 
-      {/* Bank Statement Table */}
-      <Card className="bg-white border-slate-200 shadow-sm overflow-hidden p-0">
-        <div className="overflow-x-auto">
-          <table className="w-full text-left border-collapse">
-            <thead className="bg-slate-50 border-b border-slate-200">
-              <tr className="text-slate-500 text-[10px] font-bold uppercase tracking-wider">
-                <th className="px-4 py-3 w-[120px] cursor-pointer hover:bg-slate-100 transition-colors group select-none" onClick={() => setSortOrder(prev => prev === 'desc' ? 'asc' : 'desc')}>
-                  <div className="flex items-center gap-1.5 text-slate-600 group-hover:text-indigo-600">
-                    <Calendar size={12}/>
-                    วันที่
-                    {sortOrder === 'desc' ? <ArrowDown size={12} className="text-indigo-500"/> : <ArrowUp size={12} className="text-indigo-500"/>}
-                  </div>
-                </th>
-                <th className="px-4 py-3 min-w-[200px]">
-                  <div className="flex items-center gap-1.5">
-                    <FileText size={12}/> รายการ
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-right w-[120px] text-rose-600 bg-rose-50/30">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <TrendingDown size={12}/> รายจ่าย
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-right w-[120px] text-emerald-600 bg-emerald-50/30">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <TrendingUp size={12}/> รายรับ
-                  </div>
-                </th>
-                <th className="px-4 py-3 text-right w-[120px] text-slate-700 bg-slate-100/50">
-                  <div className="flex items-center justify-end gap-1.5">
-                    <Wallet size={12}/> คงเหลือ
-                  </div>
-                </th>
-              </tr>
+        {showFilters && (
+          <div className="mt-4 grid gap-3 border-t border-slate-100 pt-4 sm:grid-cols-2 lg:grid-cols-5">
+            <FilterSelect label="โครงการ" value={filterProject} onChange={setFilterProject} options={[{ value: 'all', label: 'ทุกโครงการ' }, ...data.projects.map(p => ({ value: p.id, label: p.name }))]} />
+            <FilterSelect label="ประเภท" value={filterType} onChange={setFilterType} options={[{ value: 'all', label: 'ทุกประเภท' }, ...Object.entries(typeLabels).map(([value, label]) => ({ value, label }))]} />
+            <FilterDate label="ตั้งแต่วันที่" value={startDate} onChange={setStartDate} />
+            <FilterDate label="ถึงวันที่" value={endDate} onChange={setEndDate} />
+            <div className="flex items-end"><button onClick={resetFilters} className="flex min-h-11 w-full items-center justify-center gap-2 rounded-xl border border-slate-300 text-sm font-semibold text-slate-600 hover:bg-slate-50"><X size={15} /> ล้างตัวกรอง</button></div>
+          </div>
+        )}
+      </section>
+
+      <section className="game-panel overflow-hidden">
+        <div className="flex items-center justify-between border-b-2 border-[#2f3a3d] bg-[#f4e4b9]/55 px-4 py-3.5 sm:px-5">
+          <div>
+            <h2 className="font-bold text-slate-900">รายการเดินบัญชี</h2>
+            <p className="mt-0.5 text-xs text-slate-500">พบ {processedTransactions.length} รายการ</p>
+          </div>
+        </div>
+
+        <div className="hidden overflow-x-auto md:block">
+          <table className="w-full border-collapse text-left">
+            <thead className="bg-slate-50 text-xs text-slate-500">
+              <tr><th className="px-5 py-3 font-semibold">วันที่</th><th className="px-5 py-3 font-semibold">รายการ</th><th className="px-5 py-3 text-right font-semibold">เงินเข้า</th><th className="px-5 py-3 text-right font-semibold">เงินออก</th><th className="px-5 py-3 text-right font-semibold">คงเหลือ</th></tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
-              {processedTransactions.length > 0 ? (
-                processedTransactions.map((t, index) => {
-                  const project = data.projects.find(p => p.id === t.projectId);
-                  const partner = data.partners.find(p => p.id === t.partnerId);
-                  const isExpense = t.type === TransactionType.EXPENSE;
-                  
-                  return (
-                    <tr key={t.id} className="hover:bg-indigo-50/30 transition-all group">
-                      {/* Date */}
-                      <td className="px-4 py-2.5 text-xs text-slate-600 whitespace-nowrap align-top">
-                        <div className="font-bold text-slate-700">{formatDate(t.date)}</div>
-                        <div className="text-[9px] text-slate-400 mt-0.5 font-medium bg-slate-100 inline-block px-1 py-0.5 rounded">
-                           {new Date(t.date).toLocaleDateString('th-TH', { weekday: 'short' })}
-                        </div>
-                      </td>
-
-                      {/* Description */}
-                      <td className="px-4 py-2.5 align-top">
-                        <div className="flex flex-col gap-1">
-                          <div className="text-xs font-bold text-slate-800 leading-snug">
-                             {t.note || (t.type === 'INCOME' ? 'รายรับ' : 'รายจ่าย')}
-                          </div>
-                          <div className="flex flex-wrap items-center gap-1.5">
-                             <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 bg-slate-100 text-slate-600 rounded border border-slate-200 font-medium">
-                               <Building2 size={8}/> {project?.name || 'Unknown'}
-                             </span>
-                             {partner ? (
-                               <span 
-                                 className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 rounded border font-bold leading-none"
-                                 style={{ backgroundColor: `${partner.color}10`, color: partner.color, borderColor: `${partner.color}30` }}
-                               >
-                                 <div className="w-1 h-1 rounded-full" style={{ backgroundColor: partner.color }}></div>
-                                 {partner.name}
-                               </span>
-                             ) : !isExpense ? (
-                               <span className="flex items-center gap-1 text-[9px] px-1.5 py-0.5 bg-indigo-50 text-indigo-600 rounded border border-indigo-100 font-bold leading-none">
-                                 <Wallet size={8}/> กองกลาง
-                               </span>
-                             ) : null}
-                          </div>
-                        </div>
-                      </td>
-
-                      {/* Withdrawal (Expense) */}
-                      <td className="px-4 py-2.5 text-right align-top bg-rose-50/10">
-                        {isExpense && (
-                          <span className="font-bold text-rose-600 text-sm tracking-tight">
-                             -{formatCurrency(t.amount)}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Deposit (Income/Invest) */}
-                      <td className="px-4 py-2.5 text-right align-top bg-emerald-50/10">
-                        {!isExpense && (
-                          <span className={`font-bold text-sm tracking-tight ${t.type === TransactionType.INVESTMENT ? 'text-indigo-600' : 'text-emerald-600'}`}>
-                             +{formatCurrency(t.amount)}
-                          </span>
-                        )}
-                      </td>
-
-                      {/* Balance */}
-                      <td className="px-4 py-2.5 text-right align-top bg-slate-50/30">
-                        <span className={`font-bold font-mono text-sm tracking-tight ${t.balance < 0 ? 'text-rose-600' : 'text-slate-800'}`}>
-                          {formatCurrency(t.balance)}
-                        </span>
-                      </td>
-                    </tr>
-                  );
-                })
-              ) : (
-                <tr>
-                  <td colSpan={5} className="p-12 text-center text-slate-400">
-                    <Search size={48} className="mx-auto mb-4 opacity-20"/>
-                    <p className="text-lg font-medium text-slate-500">ไม่พบรายการเคลื่อนไหว</p>
-                    <p className="text-sm">ลองปรับตัวกรองหรือค้นหาด้วยคำอื่น</p>
-                  </td>
-                </tr>
-              )}
+              {processedTransactions.map(transaction => <DesktopRow key={transaction.id} transaction={transaction} data={data} />)}
             </tbody>
           </table>
         </div>
-      </Card>
+
+        <div className="divide-y divide-slate-100 md:hidden">
+          {processedTransactions.map(transaction => <MobileRow key={transaction.id} transaction={transaction} data={data} />)}
+        </div>
+
+        {processedTransactions.length === 0 && (
+          <div className="flex min-h-64 flex-col items-center justify-center px-5 text-center text-slate-500">
+            <FileText size={32} className="mb-3 text-slate-300" />
+            <p className="font-semibold">ไม่พบรายการ</p>
+            <p className="mt-1 text-sm">ลองเปลี่ยนคำค้นหาหรือล้างตัวกรอง</p>
+          </div>
+        )}
+      </section>
+
+      <div ref={pdfRef} className="fixed left-[-10000px] top-0 z-[-1] bg-white">
+        <PDFReport data={data} transactions={processedTransactions} summary={summary} projectId={filterProject} startDate={startDate} endDate={endDate} />
+      </div>
     </div>
   );
 };
+
+const Metric = ({ label, value, tone }: { label: string; value: number; tone: 'blue' | 'green' | 'red' }) => {
+  const tones = { blue: 'bg-blue-50 text-blue-700', green: 'bg-teal-50 text-teal-700', red: 'bg-rose-50 text-rose-700' };
+  return <div className="game-panel min-w-0 p-3 sm:p-4"><span className={`inline-flex max-w-full truncate rounded-lg border border-[#2f3a3d]/20 px-2 py-1 text-[10px] font-bold sm:text-xs ${tones[tone]}`}>{label}</span><p className="number-display mt-3 truncate text-lg font-bold text-[#2f3a3d] sm:text-xl">{formatMoney(value)}</p><p className="mt-1 text-[10px] text-slate-400 sm:text-xs">บาท</p></div>;
+};
+
+const FilterSelect = ({ label, value, onChange, options }: { label: string; value: string; onChange: (value: string) => void; options: { value: string; label: string }[] }) => <label className="text-xs font-semibold text-slate-600">{label}<select value={value} onChange={e => onChange(e.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-teal-600">{options.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>;
+const FilterDate = ({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) => <label className="text-xs font-semibold text-slate-600">{label}<input type="date" value={value} onChange={e => onChange(e.target.value)} className="mt-1.5 min-h-11 w-full rounded-xl border border-slate-300 bg-white px-3 text-sm outline-none focus:border-teal-600" /></label>;
+
+const DesktopRow = ({ transaction, data }: { transaction: TransactionWithBalance; data: AppState }) => {
+  const project = data.projects.find(p => p.id === transaction.projectId);
+  const partner = data.partners.find(p => p.id === transaction.partnerId);
+  const isExpense = transaction.type === TransactionType.EXPENSE;
+  return <tr className="hover:bg-slate-50"><td className="whitespace-nowrap px-5 py-3.5 text-xs text-slate-600">{new Date(transaction.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short', year: '2-digit' })}</td><td className="px-5 py-3.5"><p className="text-sm font-semibold text-slate-800">{transaction.note || typeLabels[transaction.type]}</p><p className="mt-1 text-[11px] text-slate-500">{project?.name || 'ไม่ระบุโครงการ'}{partner ? ` · ${partner.name}` : ''} · {typeLabels[transaction.type]}</p></td><td className="px-5 py-3.5 text-right text-sm font-bold text-teal-700">{!isExpense ? `+${formatMoney(transaction.amount, 2)}` : ''}</td><td className="px-5 py-3.5 text-right text-sm font-bold text-rose-600">{isExpense ? `-${formatMoney(transaction.amount, 2)}` : ''}</td><td className={`px-5 py-3.5 text-right text-sm font-bold ${transaction.balance < 0 ? 'text-rose-600' : 'text-slate-900'}`}>{formatMoney(transaction.balance, 2)}</td></tr>;
+};
+
+const MobileRow = ({ transaction, data }: { transaction: TransactionWithBalance; data: AppState }) => {
+  const project = data.projects.find(p => p.id === transaction.projectId);
+  const isExpense = transaction.type === TransactionType.EXPENSE;
+  return <div className="p-4"><div className="flex items-start gap-3"><span className={`mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full ${isExpense ? 'bg-rose-50 text-rose-600' : 'bg-teal-50 text-teal-700'}`}>{isExpense ? <ArrowDown size={16} /> : <ArrowUp size={16} />}</span><div className="min-w-0 flex-1"><p className="truncate text-sm font-semibold text-slate-800">{transaction.note || typeLabels[transaction.type]}</p><p className="mt-1 text-xs text-slate-500">{project?.name || 'ไม่ระบุโครงการ'} · {new Date(transaction.date).toLocaleDateString('th-TH', { day: 'numeric', month: 'short' })}</p></div><p className={`shrink-0 text-sm font-bold ${isExpense ? 'text-rose-600' : 'text-teal-700'}`}>{isExpense ? '-' : '+'}{formatMoney(transaction.amount)}</p></div><div className="mt-3 flex items-center justify-between rounded-lg bg-slate-50 px-3 py-2 text-xs"><span className="text-slate-500">คงเหลือหลังรายการ</span><strong className={transaction.balance < 0 ? 'text-rose-600' : 'text-slate-800'}>{formatMoney(transaction.balance)} บาท</strong></div></div>;
+};
+
+const chunk = <T,>(items: T[], size: number) => items.reduce<T[][]>((groups, item, index) => { const groupIndex = Math.floor(index / size); (groups[groupIndex] ||= []).push(item); return groups; }, []);
+
+const paginateTransactions = <T,>(items: T[]) => {
+  if (items.length <= 13) return [items];
+  return [items.slice(0, 13), ...chunk(items.slice(13), 17)];
+};
+
+const PDFReport = ({ data, transactions, summary, projectId, startDate, endDate }: { data: AppState; transactions: TransactionWithBalance[]; summary: ReturnType<typeof getFinancialSummary>; projectId: string; startDate: string; endDate: string }) => {
+  const pages = paginateTransactions(transactions);
+  const projectName = projectId === 'all' ? 'ทุกโครงการ' : data.projects.find(p => p.id === projectId)?.name || '-';
+  const period = startDate || endDate ? `${startDate ? new Date(startDate).toLocaleDateString('th-TH') : 'เริ่มต้น'} - ${endDate ? new Date(endDate).toLocaleDateString('th-TH') : 'ปัจจุบัน'}` : 'ทุกช่วงเวลา';
+  return <>{pages.map((page, pageIndex) => <div data-pdf-page key={pageIndex} style={{ width: 794, height: 1123, padding: '44px 48px', background: '#fffdf7', color: '#2f3a3d', fontFamily: 'Sarabun, sans-serif', position: 'relative', overflow: 'hidden' }}>
+    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', borderBottom: '3px solid #2f3a3d', paddingBottom: 18 }}><div><div style={{ color: '#d96b5f', fontSize: 14, fontWeight: 700, letterSpacing: 1 }}>CO/INVEST</div><h1 style={{ fontSize: 25, margin: '5px 0 0', fontWeight: 700 }}>รายงานบัญชีรายรับ-รายจ่าย</h1></div><div style={{ textAlign: 'right', color: '#687477', fontSize: 12, lineHeight: 1.6 }}><div>โครงการ: {projectName}</div><div>ช่วงเวลา: {period}</div></div></div>
+    {pageIndex === 0 && <div style={{ display: 'grid', gridTemplateColumns: '1.3fr 1fr 1fr 1fr', gap: 10, margin: '20px 0' }}><PdfMetric label="เงินคงเหลือพร้อมใช้" value={summary.availableCash} primary /><PdfMetric label="เงินผู้ถือหุ้น" value={summary.shareholderFunds} /><PdfMetric label="รายรับ" value={summary.totalIncome} /><PdfMetric label="รายจ่าย" value={summary.totalExpense} /></div>}
+    {pageIndex > 0 && <div style={{ margin: '16px 0', color: '#64748b', fontSize: 12 }}>รายการต่อ (หน้า {pageIndex + 1})</div>}
+    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 11 }}><thead><tr style={{ background: '#f4e4b9', color: '#2f3a3d' }}><PdfTh>วันที่</PdfTh><PdfTh>รายการ / โครงการ</PdfTh><PdfTh align="right">เงินเข้า</PdfTh><PdfTh align="right">เงินออก</PdfTh><PdfTh align="right">คงเหลือ</PdfTh></tr></thead><tbody>{page.map(transaction => { const expense = transaction.type === TransactionType.EXPENSE; const project = data.projects.find(p => p.id === transaction.projectId); return <tr key={transaction.id}><PdfTd>{new Date(transaction.date).toLocaleDateString('th-TH')}</PdfTd><PdfTd><strong>{transaction.note || typeLabels[transaction.type]}</strong><div style={{ color: '#687477', marginTop: 3 }}>{project?.name || '-'} · {typeLabels[transaction.type]}</div></PdfTd><PdfTd align="right" color="#3f6350">{expense ? '-' : formatMoney(transaction.amount, 2)}</PdfTd><PdfTd align="right" color="#a94646">{expense ? formatMoney(transaction.amount, 2) : '-'}</PdfTd><PdfTd align="right"><strong>{formatMoney(transaction.balance, 2)}</strong></PdfTd></tr>; })}</tbody></table>
+    <div style={{ position: 'absolute', left: 48, right: 48, bottom: 32, display: 'flex', justifyContent: 'space-between', borderTop: '1px solid #e2e8f0', paddingTop: 10, color: '#94a3b8', fontSize: 10 }}><span>สร้างจาก CoInvest · {new Date().toLocaleString('th-TH')}</span><span>หน้า {pageIndex + 1} / {pages.length}</span></div>
+  </div>)}</>;
+};
+
+const PdfMetric = ({ label, value, primary }: { label: string; value: number; primary?: boolean }) => <div style={{ border: `2px solid ${primary ? '#2f3a3d' : '#cfd4cd'}`, background: primary ? '#dce9e1' : '#fffdf7', borderRadius: 8, padding: 12 }}><div style={{ color: '#687477', fontSize: 10 }}>{label}</div><div style={{ marginTop: 5, fontSize: primary ? 18 : 15, fontWeight: 700, color: '#2f3a3d' }}>{formatMoney(value, 2)}</div><div style={{ color: '#879092', fontSize: 9 }}>บาท</div></div>;
+const PdfTh = ({ children, align = 'left' }: { children: React.ReactNode; align?: 'left' | 'right' }) => <th style={{ padding: '10px 8px', borderBottom: '1px solid #cbd5e1', textAlign: align, fontWeight: 700 }}>{children}</th>;
+const PdfTd = ({ children, align = 'left', color }: { children: React.ReactNode; align?: 'left' | 'right'; color?: string }) => <td style={{ padding: '10px 8px', borderBottom: '1px solid #e2e8f0', textAlign: align, color, verticalAlign: 'top' }}>{children}</td>;

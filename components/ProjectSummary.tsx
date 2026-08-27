@@ -4,6 +4,7 @@ import { Button, Badge } from './ui/Components';
 import { Download, X, Building2, TrendingUp, TrendingDown, DollarSign, PieChart as PieIcon, Calendar, Loader2, ArrowRightLeft, ArrowRight, ArrowDownLeft, ArrowUpRight, Activity, BarChart2 } from 'lucide-react';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip, BarChart, Bar, XAxis, YAxis, CartesianGrid } from 'recharts';
 import html2canvas from 'html2canvas';
+import jsPDF from 'jspdf';
 
 interface ProjectSummaryProps {
   data: AppState;
@@ -34,23 +35,37 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
     try {
       await new Promise(resolve => setTimeout(resolve, 200)); // Wait for render
       
+      await document.fonts.ready;
       const canvas = await html2canvas(printRef.current, {
         scale: 2,
-        backgroundColor: '#F8FAFC',
+        backgroundColor: '#ffffff',
         logging: false,
         useCORS: true,
-        allowTaint: true,
-        windowWidth: 1200
+        windowWidth: 1000,
+        onclone: clonedDocument => {
+          const report = clonedDocument.getElementById('project-report');
+          if (report) {
+            report.style.width = '1000px';
+            report.style.maxWidth = 'none';
+          }
+        },
       });
       
       const project = data.projects.find(p => p.id === selectedProjectId);
-      const link = document.createElement('a');
-      link.download = `CoInvest-Project-${project?.name || 'Summary'}.png`;
-      link.href = canvas.toDataURL('image/png');
-      link.click();
+      const doc = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true });
+      const pageHeight = Math.floor(canvas.width * 297 / 210);
+      for (let offset = 0, page = 0; offset < canvas.height; offset += pageHeight, page += 1) {
+        const slice = document.createElement('canvas');
+        slice.width = canvas.width;
+        slice.height = Math.min(pageHeight, canvas.height - offset);
+        slice.getContext('2d')?.drawImage(canvas, 0, offset, canvas.width, slice.height, 0, 0, canvas.width, slice.height);
+        if (page > 0) doc.addPage();
+        doc.addImage(slice.toDataURL('image/jpeg', 0.94), 'JPEG', 0, 0, 210, 210 * slice.height / slice.width, undefined, 'FAST');
+      }
+      doc.save(`CoInvest-Project-${project?.name || 'Summary'}.pdf`);
     } catch (err) {
       console.error("Export failed:", err);
-      alert("ไม่สามารถบันทึกรูปภาพได้");
+      alert("ไม่สามารถสร้าง PDF ได้");
     } finally {
       setIsExporting(false);
     }
@@ -147,6 +162,7 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
       expense,
       investment,
       netProfit,
+      availableCash: investment + netProfit,
       roi,
       partnerShares,
       recentTx,
@@ -169,7 +185,7 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
   return (
     <div className="space-y-6 max-w-7xl mx-auto pb-10">
       {/* Controls */}
-      <div className="bg-white p-4 rounded-2xl border border-slate-200 shadow-sm flex flex-col md:flex-row justify-between items-center gap-4 relative z-10">
+      <div className="game-panel p-4 flex flex-col md:flex-row justify-between items-center gap-4 relative z-10">
         <div className="flex flex-col md:flex-row gap-3 w-full md:w-auto">
            <div className="w-full md:w-64">
               <select 
@@ -202,7 +218,7 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
 
         <Button onClick={handleDownload} disabled={isExporting} className="w-full md:w-auto rounded-xl px-4 py-2.5 font-bold text-sm">
           {isExporting ? <Loader2 className="animate-spin mr-2" size={16}/> : <Download className="mr-2" size={16}/>}
-          บันทึกรูปภาพ
+          ส่งออก PDF
         </Button>
       </div>
 
@@ -210,7 +226,8 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
       <div className="overflow-x-auto">
         <div 
           ref={printRef}
-          className="w-full min-w-[800px] bg-slate-50/50 rounded-3xl border border-slate-200 p-6 md:p-8"
+          id="project-report"
+          className="game-panel w-full p-4 md:p-7"
         >
           {/* Header Content */}
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-8 gap-4">
@@ -265,11 +282,11 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                   <p className="text-2xl font-extrabold text-rose-600 tracking-tight">{formatMoney(stats.expense)}</p>
                </div>
 
-               <div className={`p-5 rounded-2xl border shadow-sm ${stats.netProfit >= 0 ? 'bg-indigo-50 border-indigo-100' : 'bg-rose-50 border-rose-100'}`}>
+               <div className={`p-5 rounded-2xl border ${stats.availableCash >= 0 ? 'bg-teal-50 border-teal-100' : 'bg-rose-50 border-rose-100'}`}>
                   <div className="flex justify-between items-start mb-2">
                      <div className="flex items-center gap-2 text-slate-600">
-                        <Activity size={16} className={stats.netProfit >= 0 ? 'text-indigo-600' : 'text-rose-600'} />
-                        <p className="text-xs font-bold uppercase tracking-wider">Net Profit</p>
+                        <Activity size={16} className={stats.availableCash >= 0 ? 'text-teal-700' : 'text-rose-600'} />
+                        <p className="text-xs font-bold uppercase tracking-wider">เงินพร้อมใช้</p>
                      </div>
                      {stats.investment > 0 && (
                         <div className={`text-[10px] font-bold px-2 py-0.5 rounded-md border ${stats.roi >= 0 ? 'bg-emerald-100 text-emerald-700 border-emerald-200' : 'bg-rose-100 text-rose-700 border-rose-200'}`}>
@@ -277,8 +294,8 @@ export const ProjectSummary: React.FC<ProjectSummaryProps> = ({ data }) => {
                         </div>
                      )}
                   </div>
-                  <p className={`text-2xl font-extrabold tracking-tight ${stats.netProfit >= 0 ? 'text-indigo-700' : 'text-rose-700'}`}>
-                     {stats.netProfit > 0 ? '+' : ''}{formatMoney(stats.netProfit)}
+                  <p className={`text-2xl font-extrabold tracking-tight ${stats.availableCash >= 0 ? 'text-teal-700' : 'text-rose-700'}`}>
+                     {formatMoney(stats.availableCash)}
                   </p>
                </div>
             </div>
