@@ -1,17 +1,21 @@
 import React, { useRef, useState, useEffect } from 'react';
 import { AppState, Partner } from '../types';
 import { Card, Button, Input } from './ui/Components';
-import { Upload, Download, Database, FileJson, CheckCircle2, Users, Plus, Trash2, Save, Sheet, Code, Copy, ChevronDown, ChevronUp, Loader2, RotateCcw } from 'lucide-react';
+import { Upload, Download, Database, FileJson, CheckCircle2, Users, Plus, Trash2, Save, Sheet, Code, Copy, ChevronDown, ChevronUp, Loader2, RotateCcw, Sparkles } from 'lucide-react';
 import { googleSheetsService } from '../services/googleSheetsService';
+import { PartnerAvatar } from './PartnerAvatar';
+import { AvatarPickerModal } from './AvatarPickerModal';
+import { CARTOON_AVATARS } from '../services/avatarLibrary';
 
 interface SettingsProps {
   data: AppState;
   onImport: (data: AppState) => void;
   onAddPartner: (partner: Omit<Partner, 'id'>) => void;
+  onUpdatePartner?: (partner: Partner) => void;
   onDeletePartner: (id: string) => void;
 }
 
-export const Settings: React.FC<SettingsProps> = ({ data, onImport, onAddPartner, onDeletePartner }) => {
+export const Settings: React.FC<SettingsProps> = ({ data, onImport, onAddPartner, onUpdatePartner, onDeletePartner }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [importStatus, setImportStatus] = useState<'idle' | 'success' | 'error'>('idle');
   const [scriptUrl, setScriptUrl] = useState('');
@@ -20,30 +24,54 @@ export const Settings: React.FC<SettingsProps> = ({ data, onImport, onAddPartner
   
   // Partner Form State
   const [newPartnerName, setNewPartnerName] = useState('');
-  const [newPartnerAvatar, setNewPartnerAvatar] = useState('🧑‍💻');
+  const [newPartnerAvatar, setNewPartnerAvatar] = useState('businessman');
   const [newPartnerColor, setNewPartnerColor] = useState('#818CF8');
+  const [editingAvatarPartner, setEditingAvatarPartner] = useState<Partner | null>(null);
 
   // Colors Palette
   const colorPalette = ['#818CF8', '#34D399', '#F472B6', '#FBBF24', '#60A5FA', '#A78BFA', '#FB7185', '#2DD4BF'];
   // Emoji Palette (Simple subset)
   const emojiPalette = ['👨‍💼', '👩‍💼', '🧑‍💻', '🦸‍♂️', '🧙‍♀️', '🦊', '🐱', '🐶', '🦁', '🐸'];
 
+  const [isTesting, setIsTesting] = useState(false);
+  const [testResult, setTestResult] = useState<{ success: boolean; message: string } | null>(null);
+
   useEffect(() => {
     const savedUrl = googleSheetsService.getUrl();
     if (savedUrl) setScriptUrl(savedUrl);
   }, []);
 
+  const handleTestUrl = async () => {
+    if (!scriptUrl.trim()) {
+      setTestResult({ success: false, message: 'กรุณาระบุ Google Apps Script URL ก่อนทดสอบ' });
+      return;
+    }
+    setIsTesting(true);
+    setTestResult(null);
+    const res = await googleSheetsService.testConnection(scriptUrl.trim());
+    setTestResult(res);
+    setIsTesting(false);
+  };
+
   const handleSaveUrl = () => {
-    googleSheetsService.setUrl(scriptUrl);
-    alert("บันทึก URL เรียบร้อย กรุณารีเฟรชหน้าเว็บเพื่อโหลดข้อมูล");
+    if (!scriptUrl.trim()) {
+      googleSheetsService.resetUrl();
+      alert("ล้าง URL เรียบร้อย ระบบจะสลับไปทำงานในโหมดจัดเก็บข้อมูลในเครื่อง (Local Storage)");
+      window.location.reload();
+      return;
+    }
+    googleSheetsService.setUrl(scriptUrl.trim());
+    alert("บันทึก URL เรียบร้อย กรุณารีเฟรชหน้าเว็บเพื่อโหลดข้อมูลจากคลาวด์");
     window.location.reload();
   };
 
   const handleResetUrl = () => {
-    if(confirm("ต้องการรีเซ็ต URL เป็นค่าเริ่มต้นของระบบใช่หรือไม่?")) {
-        googleSheetsService.resetUrl();
-        alert("รีเซ็ตเรียบร้อย กด OK เพื่อรีโหลด");
-        window.location.reload();
+    if (confirm("ต้องการล้าง URL และเปลี่ยนเป็นโหมดจัดเก็บข้อมูลในเครื่อง (Local Storage) ใช่หรือไม่?")) {
+      googleSheetsService.resetUrl();
+      setScriptUrl('');
+      setTestResult(null);
+      alert("สลับไปใช้โหมดจัดเก็บข้อมูลในเครื่องเรียบร้อย");
+      window.location.reload();
     }
   };
 
@@ -317,17 +345,24 @@ function getSheetData(sheet) {
                  <Input 
                    label="Google Apps Script URL" 
                    value={scriptUrl} 
-                   onChange={e => setScriptUrl(e.target.value)} 
+                   onChange={e => {
+                     setScriptUrl(e.target.value);
+                     if (testResult) setTestResult(null);
+                   }} 
                    placeholder="https://script.google.com/macros/s/.../exec"
                    className="font-mono text-xs md:text-sm"
                  />
                </div>
-               <div className="flex gap-3 w-full md:w-auto">
+               <div className="flex gap-2 w-full md:w-auto flex-wrap">
+                 <Button onClick={handleTestUrl} disabled={isTesting || !scriptUrl.trim()} variant="secondary" className="whitespace-nowrap flex-1 md:flex-none">
+                   {isTesting ? <Loader2 size={18} className="animate-spin mr-2"/> : null}
+                   ทดสอบการเชื่อมต่อ
+                 </Button>
                  <Button onClick={handleSaveUrl} className="whitespace-nowrap flex-1 md:flex-none shadow-indigo-200/50">
                    <Save size={18} className="mr-2"/> บันทึก URL
                  </Button>
-                 <Button onClick={handleResetUrl} variant="ghost" className="whitespace-nowrap text-slate-500 hover:text-rose-500 hover:bg-rose-50" title="รีเซ็ตเป็นค่าเริ่มต้น">
-                   <RotateCcw size={18} className="mr-2"/> รีเซ็ต
+                 <Button onClick={handleResetUrl} variant="ghost" className="whitespace-nowrap text-slate-500 hover:text-rose-500 hover:bg-rose-50" title="ล้าง URL เพื่อใช้โหมดในเครื่อง">
+                   <RotateCcw size={18} className="mr-2"/> ล้าง URL (ใช้ในเครื่อง)
                  </Button>
                  {scriptUrl && (
                    <Button onClick={handleForceSync} disabled={isSyncing} variant="secondary" className="whitespace-nowrap flex-1 md:flex-none">
@@ -337,6 +372,19 @@ function getSheetData(sheet) {
                  )}
                </div>
             </div>
+
+            {testResult && (
+              <div className={`p-3 rounded-xl border text-sm font-medium flex items-center gap-2.5 animate-in fade-in duration-200 ${testResult.success ? 'bg-emerald-50 border-emerald-300 text-emerald-800' : 'bg-rose-50 border-rose-300 text-rose-800'}`}>
+                <div className={`w-2.5 h-2.5 rounded-full ${testResult.success ? 'bg-emerald-500' : 'bg-rose-500'}`} />
+                <span>{testResult.message}</span>
+              </div>
+            )}
+
+            {!scriptUrl.trim() && !testResult && (
+              <div className="p-3 rounded-xl border border-amber-200 bg-amber-50/70 text-amber-900 text-xs sm:text-sm">
+                <strong>💡 สถานะปัจจุบัน:</strong> กำลังใช้งานใน <strong>โหมดจัดเก็บในเครื่อง (Local Storage)</strong> ข้อมูลจะถูกบันทึกในเบราว์เซอร์นี้โดยอัตโนมัติ หากต้องการซิงค์ข้อมูลหลายคนผ่าน Google Sheets สามารถทำตามคู่มือด้านล่าง
+              </div>
+            )}
 
             <div className="rounded-[13px] border-2 border-[#2f3a3d] bg-[#fffdf7] p-5 shadow-[3px_3px_0_#2f3a3d] transition-all duration-300">
                 <div 
@@ -577,16 +625,28 @@ function getSheetData(sheet) {
                   />
                   
                   <div className="space-y-3">
-                    <label className="text-sm font-semibold text-slate-700 block">เลือก Avatar</label>
-                    <div className="flex gap-2 flex-wrap">
-                       {emojiPalette.map(emoji => (
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-semibold text-slate-700 block">เลือกไอคอนการ์ตูน</label>
+                      <PartnerAvatar
+                        avatar={newPartnerAvatar}
+                        color={newPartnerColor}
+                        size="md"
+                        className="border border-slate-200 shadow-sm"
+                      />
+                    </div>
+                    <div className="grid grid-cols-4 sm:grid-cols-6 gap-2 max-h-48 overflow-y-auto p-1 bg-slate-50/50 rounded-xl border border-slate-200">
+                       {CARTOON_AVATARS.map(avatarItem => (
                          <button 
-                           key={emoji}
+                           key={avatarItem.id}
                            type="button"
-                           onClick={() => setNewPartnerAvatar(emoji)}
-                           className={`w-10 h-10 rounded-xl text-xl flex items-center justify-center transition-all duration-200 ${newPartnerAvatar === emoji ? 'bg-white shadow-md shadow-slate-200/50 scale-110 ring-2 ring-indigo-500 ring-offset-1' : 'bg-white border border-slate-200 hover:bg-slate-50 hover:scale-105'}`}
+                           onClick={() => setNewPartnerAvatar(avatarItem.id)}
+                           title={avatarItem.name}
+                           className={`p-1.5 rounded-xl flex flex-col items-center justify-center transition-all duration-150 ${newPartnerAvatar === avatarItem.id ? 'bg-amber-100/80 border-2 border-[#2f3a3d] shadow-[2px_2px_0_#2f3a3d] scale-105' : 'bg-white border border-slate-200 hover:bg-slate-50 hover:scale-105'}`}
                          >
-                           {emoji}
+                           <div className="w-8 h-8 flex items-center justify-center">
+                             {avatarItem.render({ className: "w-full h-full object-contain" })}
+                           </div>
+                           <span className="text-[9px] font-bold text-slate-600 mt-1 truncate max-w-full">{avatarItem.name.split(' ')[0]}</span>
                          </button>
                        ))}
                     </div>
@@ -630,13 +690,33 @@ function getSheetData(sheet) {
                            <Trash2 size={16}/>
                          </button>
                        </div>
-                       <div className="flex items-center gap-4 mb-3">
-                          <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm ring-1 ring-black/5" style={{ backgroundColor: p.color + '15' }}>
-                             {p.avatar}
+                       <div className="flex items-center gap-4 mb-2">
+                          <div 
+                            onClick={() => setEditingAvatarPartner(p)}
+                            className="cursor-pointer group/av relative shrink-0"
+                            title="คลิกเพื่อเปลี่ยนไอคอนการ์ตูน"
+                          >
+                            <PartnerAvatar
+                              avatar={p.avatar}
+                              name={p.name}
+                              color={p.color}
+                              size="lg"
+                              className="shadow-sm ring-1 ring-black/5 group-hover/av:scale-105 transition-transform"
+                            />
+                            <span className="absolute -bottom-1 -right-1 bg-white border border-slate-200 text-[10px] rounded-full p-0.5 shadow-sm opacity-0 group-hover/av:opacity-100 transition-opacity">
+                              ✏️
+                            </span>
                           </div>
-                          <div>
-                             <p className="font-bold text-slate-800 text-base">{p.name}</p>
+                          <div className="min-w-0 flex-1">
+                             <p className="font-bold text-slate-800 text-base truncate">{p.name}</p>
                              <div className="w-8 h-1.5 rounded-full mt-1.5 opacity-80" style={{ backgroundColor: p.color }}></div>
+                             <button
+                               type="button"
+                               onClick={() => setEditingAvatarPartner(p)}
+                               className="text-[11px] text-indigo-600 hover:text-indigo-800 font-bold mt-1.5 inline-flex items-center gap-1 hover:underline"
+                             >
+                               <Sparkles size={12} /> เปลี่ยนไอคอน
+                             </button>
                           </div>
                        </div>
                     </div>
@@ -672,6 +752,24 @@ function getSheetData(sheet) {
             </Button>
         </div>
       </div>
+
+      {/* Cartoon Avatar Picker Modal */}
+      {editingAvatarPartner && (
+        <AvatarPickerModal
+          partner={editingAvatarPartner}
+          isOpen={!!editingAvatarPartner}
+          onClose={() => setEditingAvatarPartner(null)}
+          onSave={(newAvatar) => {
+            if (onUpdatePartner && editingAvatarPartner) {
+              onUpdatePartner({
+                ...editingAvatarPartner,
+                avatar: newAvatar,
+              });
+            }
+            setEditingAvatarPartner(null);
+          }}
+        />
+      )}
     </div>
   );
 };

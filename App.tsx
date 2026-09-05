@@ -104,7 +104,12 @@ const App: React.FC = () => {
     setData(prev => ({ ...prev, projects: [...prev.projects, newProject] }));
     if (isConnected) {
       const result = await googleSheetsService.addProject(newProject);
-      if (result.error) alert('บันทึกโครงการไม่สำเร็จ กรุณาลองใหม่');
+      if (result.error) {
+        setSyncError(true);
+        console.warn('บันทึกโครงการขึ้นคลาวด์ไม่สำเร็จ (บันทึกในเครื่องแล้ว):', result.error);
+      } else {
+        setSyncError(false);
+      }
     }
   };
 
@@ -113,7 +118,12 @@ const App: React.FC = () => {
     setData(prev => ({ ...prev, transactions: [...prev.transactions, newTransaction] }));
     if (isConnected) {
       const result = await googleSheetsService.addTransaction(newTransaction);
-      if (result.error) alert('บันทึกรายการไม่สำเร็จ กรุณาลองใหม่');
+      if (result.error) {
+        setSyncError(true);
+        console.warn('บันทึกรายการขึ้นคลาวด์ไม่สำเร็จ (บันทึกในเครื่องแล้ว):', result.error);
+      } else {
+        setSyncError(false);
+      }
     }
   };
 
@@ -121,7 +131,12 @@ const App: React.FC = () => {
     setData(prev => ({ ...prev, transactions: prev.transactions.map(t => t.id === transaction.id ? transaction : t) }));
     if (isConnected) {
       const result = await googleSheetsService.updateTransaction(transaction);
-      if (result.error) alert('แก้ไขรายการไม่สำเร็จ กรุณาลองใหม่');
+      if (result.error) {
+        setSyncError(true);
+        console.warn('แก้ไขรายการขึ้นคลาวด์ไม่สำเร็จ (บันทึกในเครื่องแล้ว):', result.error);
+      } else {
+        setSyncError(false);
+      }
     }
   };
 
@@ -129,7 +144,12 @@ const App: React.FC = () => {
     setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
     if (isConnected) {
       const result = await googleSheetsService.deleteTransaction(id);
-      if (result.error) alert('ลบรายการไม่สำเร็จ กรุณาลองใหม่');
+      if (result.error) {
+        setSyncError(true);
+        console.warn('ลบรายการบนคลาวด์ไม่สำเร็จ (ลบในเครื่องแล้ว):', result.error);
+      } else {
+        setSyncError(false);
+      }
     }
   };
 
@@ -138,7 +158,28 @@ const App: React.FC = () => {
     setData(prev => ({ ...prev, partners: [...prev.partners, newPartner] }));
     if (isConnected) {
       const result = await googleSheetsService.addPartner(newPartner);
-      if (result.error) alert('บันทึกผู้ถือหุ้นไม่สำเร็จ กรุณาลองใหม่');
+      if (result.error) {
+        setSyncError(true);
+        console.warn('บันทึกผู้ถือหุ้นขึ้นคลาวด์ไม่สำเร็จ (บันทึกในเครื่องแล้ว):', result.error);
+      } else {
+        setSyncError(false);
+      }
+    }
+  };
+
+  const updatePartner = async (partner: Partner) => {
+    setData(prev => ({
+      ...prev,
+      partners: prev.partners.map(p => p.id === partner.id ? partner : p)
+    }));
+    if (isConnected) {
+      const result = await googleSheetsService.updatePartner(partner);
+      if (result.error) {
+        setSyncError(true);
+        console.warn('แก้ไขผู้ถือหุ้นขึ้นคลาวด์ไม่สำเร็จ (บันทึกในเครื่องแล้ว):', result.error);
+      } else {
+        setSyncError(false);
+      }
     }
   };
 
@@ -150,7 +191,12 @@ const App: React.FC = () => {
     setData(prev => ({ ...prev, partners: prev.partners.filter(p => p.id !== id) }));
     if (isConnected) {
       const result = await googleSheetsService.deletePartner(id);
-      if (result.error) alert('ลบผู้ถือหุ้นไม่สำเร็จ กรุณาลองใหม่');
+      if (result.error) {
+        setSyncError(true);
+        console.warn('ลบผู้ถือหุ้นบนคลาวด์ไม่สำเร็จ (ลบในเครื่องแล้ว):', result.error);
+      } else {
+        setSyncError(false);
+      }
     }
   };
 
@@ -222,8 +268,8 @@ const App: React.FC = () => {
           {view === 'PROJECTS' && <Projects data={data} onAddProject={addProject} onAddTransaction={addTransaction} onUpdateTransaction={updateTransaction} onDeleteTransaction={deleteTransaction} />}
           {view === 'ACCOUNTS' && <Accounts data={data} />}
           {view === 'PROJECT_SUMMARY' && <ProjectSummary data={data} />}
-          {view === 'PARTNERS' && <PartnerSummary data={data} />}
-          {view === 'SETTINGS' && <Settings data={data} onImport={importData} onAddPartner={addPartner} onDeletePartner={deletePartner} />}
+          {view === 'PARTNERS' && <PartnerSummary data={data} onUpdatePartner={updatePartner} />}
+          {view === 'SETTINGS' && <Settings data={data} onImport={importData} onAddPartner={addPartner} onUpdatePartner={updatePartner} onDeletePartner={deletePartner} />}
         </div>
       </main>
 

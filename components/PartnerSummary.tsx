@@ -1,17 +1,21 @@
 import React, { useRef, useState, useMemo } from 'react';
-import { AppState, TransactionType, Transaction } from '../types';
+import { AppState, TransactionType, Transaction, Partner } from '../types';
 import { Button, Card, Badge } from './ui/Components';
-import { Download, Filter, X, PieChart, Wallet, Loader2, FileText, TrendingUp, Building2, Calendar, User, ChevronRight, ArrowUpRight, ChevronDown } from 'lucide-react';
+import { Download, Filter, X, PieChart, Wallet, Loader2, FileText, TrendingUp, Building2, Calendar, User, ChevronRight, ArrowUpRight, ChevronDown, Sparkles } from 'lucide-react';
 import html2canvas from 'html2canvas';
 import jsPDF from 'jspdf';
+import { PartnerAvatar } from './PartnerAvatar';
+import { AvatarPickerModal } from './AvatarPickerModal';
 
 interface PartnerSummaryProps {
   data: AppState;
+  onUpdatePartner?: (partner: Partner) => void;
 }
 
-export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
+export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data, onUpdatePartner }) => {
   const printRef = useRef<HTMLDivElement>(null);
   const [isExporting, setIsExporting] = useState(false);
+  const [editingAvatarPartner, setEditingAvatarPartner] = useState<Partner | null>(null);
 
   // Filters
   const [filterPartner, setFilterPartner] = useState<string>('all');
@@ -193,8 +197,20 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
             {/* Modal Header */}
             <div className="p-6 border-b border-slate-100 flex items-center justify-between bg-slate-50/50">
               <div className="flex items-center gap-4">
-                <div className="w-12 h-12 rounded-2xl flex items-center justify-center text-2xl shadow-sm ring-1 ring-slate-200 bg-white">
-                  {expandedPartnerData.avatar}
+                <div 
+                  onClick={() => {
+                    const pObj = data.partners.find(p => p.id === expandedPartnerData.id) || expandedPartnerData;
+                    setEditingAvatarPartner(pObj);
+                  }}
+                  className="w-12 h-12 rounded-2xl flex items-center justify-center shadow-sm ring-1 ring-slate-200 bg-white cursor-pointer hover:scale-105 transition-transform"
+                  title="คลิกเพื่อเปลี่ยนไอคอนการ์ตูน"
+                >
+                  <PartnerAvatar
+                    avatar={expandedPartnerData.avatar}
+                    name={expandedPartnerData.name}
+                    color={expandedPartnerData.color}
+                    size="lg"
+                  />
                 </div>
                 <div>
                   <h3 className="text-xl font-bold text-slate-800">{expandedPartnerData.name}</h3>
@@ -378,8 +394,24 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
                  {/* Card Header */}
                  <div className="p-6 border-b border-slate-50 bg-gradient-to-br from-white to-slate-50/50">
                     <div className="flex justify-between items-start mb-4">
-                       <div className="w-14 h-14 rounded-2xl flex items-center justify-center text-3xl shadow-sm ring-4 ring-white" style={{ backgroundColor: `${partner.color}15` }}>
-                          {partner.avatar}
+                       <div 
+                         onClick={() => {
+                           const pObj = data.partners.find(p => p.id === partner.id) || partner;
+                           setEditingAvatarPartner(pObj);
+                         }}
+                         className="cursor-pointer group/avatar relative"
+                         title="คลิกเพื่อเลือกเปลี่ยนไอคอนการ์ตูน"
+                       >
+                         <PartnerAvatar
+                           avatar={partner.avatar}
+                           name={partner.name}
+                           color={partner.color}
+                           size="xl"
+                           className="ring-4 ring-white shadow-sm group-hover/avatar:scale-105 group-hover/avatar:shadow-md transition-all duration-200"
+                         />
+                         <span className="absolute -bottom-1 -right-1 bg-white border border-[#2f3a3d] text-[10px] rounded-full p-1 shadow-sm opacity-0 group-hover/avatar:opacity-100 transition-opacity">
+                           ✏️
+                         </span>
                        </div>
                        <Badge className="bg-slate-900 text-white border-transparent shadow-sm">
                           {partner.sharePercent.toFixed(1)}% Share
@@ -514,6 +546,24 @@ export const PartnerSummary: React.FC<PartnerSummaryProps> = ({ data }) => {
            </div>
         </div>
       </div>
+
+      {/* Cartoon Avatar Picker Modal */}
+      {editingAvatarPartner && (
+        <AvatarPickerModal
+          partner={editingAvatarPartner}
+          isOpen={!!editingAvatarPartner}
+          onClose={() => setEditingAvatarPartner(null)}
+          onSave={(newAvatar) => {
+            if (onUpdatePartner && editingAvatarPartner) {
+              onUpdatePartner({
+                ...editingAvatarPartner,
+                avatar: newAvatar,
+              });
+            }
+            setEditingAvatarPartner(null);
+          }}
+        />
+      )}
     </div>
   );
 };

@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import {
+  AlertTriangle,
   ArrowDown,
   ArrowUp,
   Building2,
@@ -29,6 +30,14 @@ interface ProjectsProps {
   onDeleteTransaction: (id: string) => void;
 }
 
+interface FundingPromptState {
+  numericAmount: number;
+  availableCash: number;
+  shortfall: number;
+  selectedPartnerId: string;
+  strategy: 'FULL' | 'SPLIT' | 'DEFICIT';
+}
+
 const typeConfig = {
   [TransactionType.EXPENSE]: { label: 'รายจ่าย', color: 'text-rose-700 bg-rose-50', icon: ArrowDown },
   [TransactionType.INCOME]: { label: 'รายรับ', color: 'text-teal-700 bg-teal-50', icon: ArrowUp },
@@ -52,6 +61,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const [receipts, setReceipts] = useState<string[]>([]);
   const [processingImages, setProcessingImages] = useState(false);
   const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [fundingPrompt, setFundingPrompt] = useState<FundingPromptState | null>(null);
 
   useEffect(() => {
     if (!selectedProjectId && data.projects[0]) setSelectedProjectId(data.projects[0].id);
@@ -64,6 +74,18 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
   const projectSummary = useMemo(() => getFinancialSummary({ transactions: projectTransactions }, projectTransactions), [projectTransactions]);
   const otherProjects = data.projects.filter(project => project.id !== selectedProjectId);
 
+  const effectiveAvailableCash = useMemo(() => {
+    let cash = projectSummary.availableCash;
+    if (editingTransaction && editingTransaction.type === TransactionType.EXPENSE && !editingTransaction.partnerId) {
+      cash += editingTransaction.amount;
+    }
+    return cash;
+  }, [projectSummary.availableCash, editingTransaction]);
+
+  const numericAmount = Number(amount || 0);
+  const isCashInsufficient = type === TransactionType.EXPENSE && !splitMode && source === 'POOL' && numericAmount > 0 && numericAmount > effectiveAvailableCash;
+  const shortfallAmount = Math.max(0, numericAmount - Math.max(0, effectiveAvailableCash));
+
   const resetTransactionForm = () => {
     setEditingTransaction(null);
     setType(TransactionType.EXPENSE);
@@ -75,6 +97,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     setSplitAmounts({});
     setReceipts([]);
     setProcessingImages(false);
+    setFundingPrompt(null);
   };
 
   const openNewTransaction = () => {
@@ -151,11 +174,14 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     receiptImage4: images[3] || undefined,
   });
 
-  const addExpenseFromSource = (sourceKey: string, sourceAmount: number) => {
+  const addExpenseFromSource = (sourceKey: string, sourceAmount: number, customNote?: string) => {
     if (!selectedProjectId) return;
     const common = { amount: sourceAmount, date, ...receiptFields(receipts) };
     const partner = data.partners.find(item => item.id === sourceKey);
     const sourceProject = data.projects.find(item => item.id === sourceKey);
+    const finalNote = customNote !== undefined
+      ? customNote
+      : (splitMode && partner ? `${note || 'รายจ่าย'} (จ่ายโดย ${partner.name})` : note);
 
     if (sourceProject) {
       onAddTransaction({ projectId: selectedProjectId, type: TransactionType.EXPENSE, note: `${note || 'รายจ่าย'} (จ่ายโดยโครงการ: ${sourceProject.name})`, partnerId: undefined, ...common });
@@ -167,7 +193,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     onAddTransaction({
       projectId: selectedProjectId,
       type: TransactionType.EXPENSE,
-      note: splitMode && partner ? `${note || 'รายจ่าย'} (จ่ายโดย ${partner.name})` : note,
+      note: finalNote,
       partnerId: partner?.id,
       ...common,
     });
@@ -179,6 +205,48 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
     const numericAmount = Number(amount);
     if (!Number.isFinite(numericAmount) || numericAmount <= 0) return;
 
+    // Check if expense from POOL exceeds available cash
+    if (type === TransactionType.EXPENSE && !splitMode && source === 'POOL') {
+      const available = effectiveAvailableCash;
+      if (numericAmount > available) {
+        const shortfall = Math.max(0, numericAmount - Math.max(0, available));
+        const defaultPartnerId = data.partners[0]?.id || '';
+        const defaultStrategy: 'FULL' | 'SPLIT' | 'DEFICIT' = data.partners.length > 0 ? 'FULL' : 'DEFICIT';
+
+        setFundingPrompt({
+          numericAmount,
+          availableCash: available,
+          shortfall,
+          selectedPartnerId: defaultPartnerId,
+          strategy: defaultStrategy,
+        });
+        return;
+      }
+    }
+
+    if (type === TransactionType.EXPENSE && splitMode) {
+      const splits = Object.entries(splitAmounts).map(([key, value]) => [key, Number(value)] as const).filter(([, value]) => value > 0);
+      const splitTotal = splits.reduce((sum, [, value]) => sum + value, 0);
+      if (Math.abs(splitTotal - numericAmount) > 0.01) {
+        alert(`ยอดแบ่งจ่ายรวม ${formatMoney(splitTotal, 2)} บาท ต้องเท่ากับยอดรายการ ${formatMoney(numericAmount, 2)} บาท`);
+        return;
+      }
+      const poolAmount = Number(splitAmounts['POOL'] || 0);
+      if (poolAmount > effectiveAvailableCash) {
+        alert(`ยอดที่เลือกแบ่งจ่ายจากกองกลาง (${formatMoney(poolAmount, 2)} บาท) เกินเงินคงเหลือพร้อมใช้ที่มี (${formatMoney(effectiveAvailableCash, 2)} บาท) กรุณาปรับเพิ่มยอดให้ผู้ถือหุ้นช่วยจ่ายแทน`);
+        return;
+      }
+      splits.forEach(([key, value]) => addExpenseFromSource(key, value));
+      setShowTransactionForm(false);
+      resetTransactionForm();
+      return;
+    }
+
+    executeDirectSave(numericAmount);
+  };
+
+  const executeDirectSave = (numericAmount: number) => {
+    if (!selectedProjectId) return;
     if (editingTransaction) {
       onUpdateTransaction({
         ...editingTransaction,
@@ -190,17 +258,7 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
         ...receiptFields(receipts),
       });
     } else if (type === TransactionType.EXPENSE) {
-      if (splitMode) {
-        const splits = Object.entries(splitAmounts).map(([key, value]) => [key, Number(value)] as const).filter(([, value]) => value > 0);
-        const splitTotal = splits.reduce((sum, [, value]) => sum + value, 0);
-        if (Math.abs(splitTotal - numericAmount) > 0.01) {
-          alert(`ยอดแบ่งจ่ายรวม ${formatMoney(splitTotal, 2)} บาท ต้องเท่ากับยอดรายการ ${formatMoney(numericAmount, 2)} บาท`);
-          return;
-        }
-        splits.forEach(([key, value]) => addExpenseFromSource(key, value));
-      } else {
-        addExpenseFromSource(source, numericAmount);
-      }
+      addExpenseFromSource(source, numericAmount);
     } else {
       onAddTransaction({
         projectId: selectedProjectId,
@@ -213,6 +271,85 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
       });
     }
 
+    setShowTransactionForm(false);
+    resetTransactionForm();
+  };
+
+  const confirmFundingPrompt = () => {
+    if (!fundingPrompt || !selectedProjectId) return;
+    const { numericAmount, availableCash, shortfall, selectedPartnerId, strategy } = fundingPrompt;
+    const partner = data.partners.find(p => p.id === selectedPartnerId);
+    const partnerName = partner?.name || 'ผู้ถือหุ้น';
+
+    if (strategy === 'FULL') {
+      if (editingTransaction) {
+        onUpdateTransaction({
+          ...editingTransaction,
+          type: TransactionType.EXPENSE,
+          amount: numericAmount,
+          date,
+          note: note ? `${note} (จ่ายโดย ${partnerName})` : `รายจ่าย (จ่ายโดย ${partnerName})`,
+          partnerId: selectedPartnerId,
+          ...receiptFields(receipts),
+        });
+      } else {
+        addExpenseFromSource(
+          selectedPartnerId,
+          numericAmount,
+          note ? `${note} (จ่ายโดย ${partnerName})` : `รายจ่าย (จ่ายโดย ${partnerName})`,
+        );
+      }
+    } else if (strategy === 'SPLIT') {
+      const poolPortion = Math.max(0, availableCash);
+      const partnerPortion = numericAmount - poolPortion;
+
+      if (editingTransaction) {
+        onUpdateTransaction({
+          ...editingTransaction,
+          type: TransactionType.EXPENSE,
+          amount: poolPortion,
+          date,
+          note: `${note || 'รายจ่าย'} (ตัดจากเงินกองกลางที่มี)`,
+          partnerId: undefined,
+          ...receiptFields(receipts),
+        });
+        onAddTransaction({
+          projectId: selectedProjectId,
+          type: TransactionType.EXPENSE,
+          amount: partnerPortion,
+          date,
+          note: `${note || 'รายจ่าย'} (ส่วนที่ ${partnerName} ช่วยออกส่วนขาด)`,
+          partnerId: selectedPartnerId,
+          ...receiptFields(receipts),
+        });
+      } else {
+        if (poolPortion > 0) {
+          addExpenseFromSource('POOL', poolPortion, `${note || 'รายจ่าย'} (ตัดจากเงินกองกลางที่มี)`);
+        }
+        addExpenseFromSource(
+          selectedPartnerId,
+          partnerPortion,
+          `${note || 'รายจ่าย'} (ส่วนที่ ${partnerName} ช่วยออกส่วนขาด)`,
+        );
+      }
+    } else {
+      // DEFICIT
+      if (editingTransaction) {
+        onUpdateTransaction({
+          ...editingTransaction,
+          type: TransactionType.EXPENSE,
+          amount: numericAmount,
+          date,
+          note,
+          partnerId: undefined,
+          ...receiptFields(receipts),
+        });
+      } else {
+        addExpenseFromSource('POOL', numericAmount);
+      }
+    }
+
+    setFundingPrompt(null);
     setShowTransactionForm(false);
     resetTransactionForm();
   };
@@ -266,6 +403,15 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
         <form onSubmit={saveTransaction} className="space-y-5 p-5">
           <div className="grid grid-cols-3 gap-1.5 rounded-xl border-2 border-[#2f3a3d] bg-[#eee8da] p-1.5">{Object.entries(typeConfig).map(([value, config]) => <button key={value} type="button" onClick={() => { setType(value as TransactionType); setSource('POOL'); setSplitMode(false); }} className={`rounded-lg px-2 py-2.5 text-sm font-bold ${type === value ? 'bg-[#d96b5f] text-white' : 'text-[#687477]'}`}>{config.label}</button>)}</div>
           <label className="block"><span className="text-sm font-bold text-slate-700">จำนวนเงิน</span><div className="relative mt-2"><input autoFocus type="number" min="0.01" step="0.01" inputMode="decimal" required value={amount} onChange={event => setAmount(event.target.value)} placeholder="0.00" className="min-h-16 w-full rounded-xl border-2 border-[#879092] bg-[#fffdf7] px-4 pr-16 text-right text-3xl font-bold text-[#2f3a3d] outline-none focus:border-[#2f3a3d] focus:ring-3 focus:ring-[#88aeb8]/25" /><span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm text-slate-400">บาท</span></div></label>
+          {isCashInsufficient && (
+            <div className="flex items-start gap-2.5 rounded-xl border-2 border-[#e7be69] bg-[#fff8e6] p-3 text-xs leading-relaxed text-[#7a5a14]">
+              <AlertTriangle size={17} className="mt-0.5 shrink-0 text-[#c89228]" />
+              <div>
+                <p className="font-bold text-[#6b4e0e]">เงินคงเหลือพร้อมใช้ไม่พอ (มีอยู่ {formatMoney(effectiveAvailableCash, 2)} บาท)</p>
+                <p className="mt-0.5 text-[#856417]">ขาดอีก {formatMoney(shortfallAmount, 2)} บาท — เมื่อกดบันทึก ระบบจะสอบถามให้เลือกว่าจะใช้เงินจากผู้ถือหุ้นท่านไหน</p>
+              </div>
+            </div>
+          )}
           <div className="grid gap-4 sm:grid-cols-2"><Field label="วันที่"><input type="date" required value={date} onChange={event => setDate(event.target.value)} className="field-input" /></Field><Field label="รายละเอียด"><input value={note} onChange={event => setNote(event.target.value)} placeholder="เช่น ค่าวัสดุ หรือยอดขาย" className="field-input" /></Field></div>
           {type === TransactionType.EXPENSE && !editingTransaction && <div className="flex items-center justify-between rounded-xl border border-slate-200 p-3"><div><p className="text-sm font-semibold text-slate-700">แบ่งจ่ายหลายแหล่ง</p><p className="mt-0.5 text-xs text-slate-500">เช่น กองกลางและผู้ถือหุ้นช่วยกันจ่าย</p></div><button type="button" onClick={() => setSplitMode(value => !value)} className={`relative h-7 w-12 rounded-full transition-colors ${splitMode ? 'bg-teal-700' : 'bg-slate-200'}`}><span className={`absolute left-1 top-1 h-5 w-5 rounded-full bg-white shadow transition-transform ${splitMode ? 'translate-x-5' : 'translate-x-0'}`} /></button></div>}
           {splitMode ? <div className="space-y-3 rounded-xl border border-teal-200 bg-teal-50/50 p-4"><div className="flex items-center justify-between"><p className="flex items-center gap-2 text-sm font-semibold text-teal-900"><Split size={15} /> ระบุยอดแต่ละแหล่ง</p><span className="text-xs text-teal-800">รวม {formatMoney(Object.values(splitAmounts).reduce((sum, value) => sum + Number(value || 0), 0), 2)} / {formatMoney(Number(amount || 0), 2)}</span></div>{sourceOptions.map(option => <label key={option.value} className="flex items-center gap-3"><span className="min-w-0 flex-1 truncate text-sm text-slate-700">{option.label}</span><input type="number" min="0" step="0.01" inputMode="decimal" value={splitAmounts[option.value] || ''} onChange={event => setSplitAmounts(current => ({ ...current, [option.value]: event.target.value }))} placeholder="0.00" className="w-32 rounded-lg border border-slate-300 px-3 py-2 text-right text-sm outline-none focus:border-teal-600" /></label>)}</div> : <Field label={type === TransactionType.INVESTMENT ? 'ผู้ถือหุ้นที่ลงทุน' : type === TransactionType.INCOME ? 'เงินเข้าที่ไหน' : 'จ่ายจากแหล่งใด'}><select required={type === TransactionType.INVESTMENT} value={source} onChange={event => setSource(event.target.value)} className="field-input">{type === TransactionType.INVESTMENT && <option value="POOL" disabled>เลือกผู้ถือหุ้น</option>}{sourceOptions.filter(option => type !== TransactionType.INVESTMENT || option.value !== 'POOL').map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></Field>}
@@ -274,6 +420,170 @@ export const Projects: React.FC<ProjectsProps> = ({ data, onAddProject, onAddTra
         </form></div></div>}
 
       {previewImage && <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-950/90 p-4" onClick={() => setPreviewImage(null)}><button className="absolute right-4 top-4 rounded-full bg-white/10 p-2 text-white"><X size={22} /></button><img src={previewImage} alt="เอกสาร" className="max-h-full max-w-full rounded-xl object-contain" /></div>}
+
+      {fundingPrompt && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-[#2f3a3d]/60 p-4 backdrop-blur-xs">
+          <div className="game-panel w-full max-w-lg overflow-hidden border-2 border-[#2f3a3d] bg-[#fffdf7] shadow-[6px_6px_0_#2f3a3d]">
+            <div className="flex items-center justify-between border-b-2 border-[#2f3a3d] bg-[#f8d77e] px-5 py-4">
+              <div className="flex items-center gap-2.5">
+                <span className="flex h-9 w-9 items-center justify-center rounded-xl border-2 border-[#2f3a3d] bg-[#fffdf7] text-[#9b6a12]">
+                  <AlertTriangle size={20} />
+                </span>
+                <div>
+                  <h3 className="font-bold text-slate-900">เงินคงเหลือพร้อมใช้ไม่พอ</h3>
+                  <p className="text-xs text-slate-600">กรุณาเลือกผู้ถือหุ้นที่จะนำเงินมาช่วยจ่าย</p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setFundingPrompt(null)}
+                className="rounded-lg border-2 border-[#2f3a3d] bg-[#fffdf7] p-1.5 text-slate-700 hover:bg-slate-100"
+              >
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="space-y-4 p-5">
+              <div className="rounded-xl border-2 border-[#2f3a3d] bg-[#eee8da]/60 p-3.5 text-xs">
+                <div className="grid grid-cols-3 gap-2 text-center">
+                  <div>
+                    <span className="block text-slate-500">ยอดรายจ่าย</span>
+                    <span className="font-bold text-rose-600">{formatMoney(fundingPrompt.numericAmount, 2)}</span>
+                  </div>
+                  <div className="border-x border-slate-300 px-1">
+                    <span className="block text-slate-500">เงินพร้อมใช้ที่มี</span>
+                    <span className="font-bold text-slate-800">{formatMoney(fundingPrompt.availableCash, 2)}</span>
+                  </div>
+                  <div>
+                    <span className="block text-slate-500">ขาดอีก</span>
+                    <span className="font-bold text-amber-700">-{formatMoney(fundingPrompt.shortfall, 2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {data.partners.length > 0 ? (
+                <div>
+                  <label className="mb-1.5 block text-xs font-bold text-slate-700">
+                    เลือกผู้ถือหุ้นที่ต้องการนำเงินมาจ่าย:
+                  </label>
+                  <select
+                    value={fundingPrompt.selectedPartnerId}
+                    onChange={e => setFundingPrompt(prev => prev ? { ...prev, selectedPartnerId: e.target.value } : null)}
+                    className="field-input w-full font-semibold"
+                  >
+                    {data.partners.map(partner => (
+                      <option key={partner.id} value={partner.id}>
+                        {partner.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ) : (
+                <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-800">
+                  ยังไม่มีรายชื่อผู้ถือหุ้นในระบบ สามารถบันทึกติดลบกองกลาง หรือไปเพิ่มรายชื่อผู้ถือหุ้นที่หน้าสรุปหุ้นส่วน
+                </div>
+              )}
+
+              {data.partners.length > 0 && (
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700">รูปแบบการชำระ:</label>
+                  
+                  <label
+                    onClick={() => setFundingPrompt(prev => prev ? { ...prev, strategy: 'FULL' } : null)}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 text-xs transition-colors ${
+                      fundingPrompt.strategy === 'FULL'
+                        ? 'border-[#2f3a3d] bg-[#dce9e1] font-semibold text-slate-900'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="fundingStrategy"
+                      checked={fundingPrompt.strategy === 'FULL'}
+                      onChange={() => setFundingPrompt(prev => prev ? { ...prev, strategy: 'FULL' } : null)}
+                      className="mt-0.5 text-teal-700"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold">ให้ผู้ถือหุ้นออกเต็มจำนวน ({formatMoney(fundingPrompt.numericAmount, 2)} บาท)</p>
+                      <p className="mt-0.5 text-[11px] font-normal text-slate-500">
+                        บันทึกเป็นรายจ่ายที่ออกโดยผู้ถือหุ้นท่านนี้โดยตรง ไม่ตัดเงินกองกลาง
+                      </p>
+                    </div>
+                  </label>
+
+                  {fundingPrompt.availableCash > 0 && (
+                    <label
+                      onClick={() => setFundingPrompt(prev => prev ? { ...prev, strategy: 'SPLIT' } : null)}
+                      className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 text-xs transition-colors ${
+                        fundingPrompt.strategy === 'SPLIT'
+                          ? 'border-[#2f3a3d] bg-[#dce9e1] font-semibold text-slate-900'
+                          : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="fundingStrategy"
+                        checked={fundingPrompt.strategy === 'SPLIT'}
+                        onChange={() => setFundingPrompt(prev => prev ? { ...prev, strategy: 'SPLIT' } : null)}
+                        className="mt-0.5 text-teal-700"
+                      />
+                      <div className="min-w-0 flex-1">
+                        <p className="font-bold">
+                          ใช้กองกลาง {formatMoney(fundingPrompt.availableCash, 2)} บาท + ผู้ถือหุ้นช่วยออก {formatMoney(fundingPrompt.shortfall, 2)} บาท
+                        </p>
+                        <p className="mt-0.5 text-[11px] font-normal text-slate-500">
+                          ระบบจะแยกตัดเงินกองกลางที่มีอยู่จนหมด และสร้างรายการส่วนขาดให้ผู้ถือหุ้นช่วยจ่าย
+                        </p>
+                      </div>
+                    </label>
+                  )}
+
+                  <label
+                    onClick={() => setFundingPrompt(prev => prev ? { ...prev, strategy: 'DEFICIT' } : null)}
+                    className={`flex cursor-pointer items-start gap-3 rounded-xl border-2 p-3 text-xs transition-colors ${
+                      fundingPrompt.strategy === 'DEFICIT'
+                        ? 'border-[#2f3a3d] bg-[#eee8da] font-semibold text-slate-900'
+                        : 'border-slate-200 bg-white text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="fundingStrategy"
+                      checked={fundingPrompt.strategy === 'DEFICIT'}
+                      onChange={() => setFundingPrompt(prev => prev ? { ...prev, strategy: 'DEFICIT' } : null)}
+                      className="mt-0.5 text-slate-700"
+                    />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-bold">จ่ายจากกองกลางตามเดิม (ยอมให้เงินกองกลางติดลบ)</p>
+                      <p className="mt-0.5 text-[11px] font-normal text-slate-500">
+                        ยังไม่ตัดเงินผู้ถือหุ้น กองกลางจะติดลบ {formatMoney(fundingPrompt.shortfall, 2)} บาท
+                      </p>
+                    </div>
+                  </label>
+                </div>
+              )}
+
+              <div className="flex gap-2.5 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setFundingPrompt(null)}
+                  className="min-h-11 flex-1 rounded-xl border-2 border-[#2f3a3d] bg-[#fffdf7] text-sm font-bold text-slate-700 hover:bg-slate-100"
+                >
+                  ย้อนกลับแก้ไข
+                </button>
+                <button
+                  type="button"
+                  onClick={confirmFundingPrompt}
+                  disabled={data.partners.length > 0 && !fundingPrompt.selectedPartnerId && fundingPrompt.strategy !== 'DEFICIT'}
+                  className="min-h-11 flex-[1.4] rounded-xl border-2 border-[#2f3a3d] bg-[#d96b5f] text-sm font-bold text-white shadow-[2px_2px_0_#2f3a3d] hover:bg-[#c95f54] disabled:opacity-50"
+                >
+                  ยืนยันบันทึกรายการ
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

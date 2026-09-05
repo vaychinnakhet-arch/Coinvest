@@ -12,6 +12,7 @@ import {
 } from 'lucide-react';
 import { AppState, TransactionType, ViewState } from '../types';
 import { formatMoney, getFinancialSummary } from '../services/finance';
+import { PartnerAvatar } from './PartnerAvatar';
 
 interface DashboardProps {
   data: AppState;
@@ -199,7 +200,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ data, onNavigate }) => {
           <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             {partners.slice(0, 4).map(partner => (
               <div key={partner.id} className="flex items-center gap-3 rounded-[10px] border-2 border-[#cfd4cd] bg-[#faf7ef] p-3">
-                <span className="flex h-10 w-10 items-center justify-center rounded-[9px] border border-[#2f3a3d]/30 text-sm font-bold text-white" style={{ backgroundColor: partner.color }}>{partner.avatar}</span>
+                <PartnerAvatar
+                  avatar={partner.avatar}
+                  name={partner.name}
+                  color={partner.color}
+                  size="md"
+                  className="rounded-[9px] border border-[#2f3a3d]/30"
+                />
                 <div className="min-w-0">
                   <p className="truncate text-sm font-semibold text-slate-700">{partner.name}</p>
                   <p className="font-bold text-slate-900">{formatMoney(partner.net)} บาท</p>
