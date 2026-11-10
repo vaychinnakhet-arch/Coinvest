@@ -15,6 +15,7 @@ import { PartnerSummary } from './components/PartnerSummary';
 import { ProjectSummary } from './components/ProjectSummary';
 import { Settings } from './components/Settings';
 import { Accounts } from './components/Accounts';
+import { SyncLoadingModal } from './components/SyncLoadingModal';
 import { googleSheetsService } from './services/googleSheetsService';
 
 const INITIAL_DATA: AppState = { partners: [], projects: [], transactions: [] };
@@ -67,6 +68,14 @@ const App: React.FC = () => {
   const [hasHydrated, setHasHydrated] = useState(isDemo);
   const [syncError, setSyncError] = useState(false);
   const isConnected = !isDemo && googleSheetsService.isConnected();
+  const [isInitialSyncing, setIsInitialSyncing] = useState(isConnected);
+  const [hasCachedData, setHasCachedData] = useState(() => {
+    try {
+      return !!localStorage.getItem('coInvestData');
+    } catch {
+      return false;
+    }
+  });
 
   useEffect(() => {
     const initData = async () => {
@@ -75,20 +84,28 @@ const App: React.FC = () => {
       // Show the most recently known data immediately while cloud data loads.
       const saved = localStorage.getItem('coInvestData');
       if (saved) {
-        try { setData(JSON.parse(saved)); } catch { console.error('Invalid local data'); }
+        try {
+          setData(JSON.parse(saved));
+          setHasCachedData(true);
+        } catch {
+          console.error('Invalid local data');
+        }
       }
 
       if (isConnected) {
         setIsLoading(true);
+        setIsInitialSyncing(true);
         setSyncError(false);
         const cloudData = await googleSheetsService.loadData();
         if (cloudData) {
           setData(cloudData);
           localStorage.setItem('coInvestData', JSON.stringify(cloudData));
+          setHasCachedData(true);
         } else {
           setSyncError(true);
         }
         setIsLoading(false);
+        setIsInitialSyncing(false);
       }
       setHasHydrated(true);
     };
@@ -284,6 +301,13 @@ const App: React.FC = () => {
           );
         })}
       </nav>
+
+      <SyncLoadingModal
+        isLoading={isInitialSyncing}
+        syncError={syncError}
+        hasCachedData={hasCachedData}
+        onDismiss={() => setIsInitialSyncing(false)}
+      />
     </div>
   );
 };
