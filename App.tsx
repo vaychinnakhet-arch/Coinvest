@@ -242,9 +242,9 @@ const App: React.FC = () => {
           </nav>
 
           <div className="ml-auto flex items-center gap-2 lg:ml-0">
-            <div className="hidden items-center gap-2 rounded-[10px] border-2 border-[#2f3a3d] bg-[#fffdf7] px-3 py-2 xl:flex">
+            <div className="flex items-center gap-1.5 rounded-[10px] border-2 border-[#2f3a3d] bg-[#fffdf7] px-2.5 py-1.5 sm:px-3 sm:py-2">
               <Cloud size={15} className={syncError ? 'text-[#d96b5f]' : isConnected ? 'text-[#7b9e87]' : 'text-[#879092]'} />
-              <span className="text-[11px] font-bold">{isLoading ? 'กำลังซิงค์...' : syncError ? 'ออฟไลน์ · ใช้ข้อมูลสำรอง' : isConnected ? 'Google Sheets' : 'ในเครื่อง'}</span>
+              <span className="text-[11px] font-bold">{isLoading ? 'กำลังซิงค์...' : syncError ? 'ออฟไลน์ · ข้อมูลสำรอง' : isConnected ? 'Google Sheets' : 'ในเครื่อง'}</span>
             </div>
             <button onClick={() => navigate('SETTINGS')} className={`pressable grid h-11 w-11 place-items-center rounded-[11px] border-2 border-[#2f3a3d] shadow-[2px_2px_0_#2f3a3d] ${view === 'SETTINGS' ? 'bg-[#e7be69] text-[#2f3a3d]' : 'bg-[#fffdf7] text-[#566164] hover:bg-[#eee8da]'}`} aria-label="ตั้งค่าและข้อมูล">
               <SettingsIcon size={20} />

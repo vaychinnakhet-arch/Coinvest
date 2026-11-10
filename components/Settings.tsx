@@ -2,7 +2,7 @@ import React, { useRef, useState, useEffect } from 'react';
 import { AppState, Partner } from '../types';
 import { Card, Button, Input } from './ui/Components';
 import { Upload, Download, Database, FileJson, CheckCircle2, Users, Plus, Trash2, Save, Sheet, Code, Copy, ChevronDown, ChevronUp, Loader2, RotateCcw, Sparkles } from 'lucide-react';
-import { googleSheetsService } from '../services/googleSheetsService';
+import { googleSheetsService, DEFAULT_SCRIPT_URL } from '../services/googleSheetsService';
 import { PartnerAvatar } from './PartnerAvatar';
 import { AvatarPickerModal } from './AvatarPickerModal';
 import { CARTOON_AVATARS } from '../services/avatarLibrary';
@@ -73,6 +73,14 @@ export const Settings: React.FC<SettingsProps> = ({ data, onImport, onAddPartner
       alert("สลับไปใช้โหมดจัดเก็บข้อมูลในเครื่องเรียบร้อย");
       window.location.reload();
     }
+  };
+
+  const handleRestoreDefaultUrl = () => {
+    googleSheetsService.restoreDefaultUrl();
+    setScriptUrl(DEFAULT_SCRIPT_URL);
+    setTestResult(null);
+    alert("กู้คืน URL ค่าเริ่มต้นของระบบเรียบร้อยแล้ว กำลังโหลดข้อมูลจาก Google Sheets");
+    window.location.reload();
   };
 
   const handleForceSync = async () => {
@@ -360,6 +368,9 @@ function getSheetData(sheet) {
                  </Button>
                  <Button onClick={handleSaveUrl} className="whitespace-nowrap flex-1 md:flex-none shadow-indigo-200/50">
                    <Save size={18} className="mr-2"/> บันทึก URL
+                 </Button>
+                 <Button onClick={handleRestoreDefaultUrl} variant="ghost" className="whitespace-nowrap text-emerald-700 hover:text-emerald-800 hover:bg-emerald-50" title="กู้คืนเป็น URL ค่าเริ่มต้นของระบบ">
+                   <Sparkles size={18} className="mr-2"/> กู้คืน URL เริ่มต้น
                  </Button>
                  <Button onClick={handleResetUrl} variant="ghost" className="whitespace-nowrap text-slate-500 hover:text-rose-500 hover:bg-rose-50" title="ล้าง URL เพื่อใช้โหมดในเครื่อง">
                    <RotateCcw size={18} className="mr-2"/> ล้าง URL (ใช้ในเครื่อง)

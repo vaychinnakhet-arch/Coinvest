@@ -1,23 +1,55 @@
 import { AppState, Partner, Project, Transaction } from '../types';
 
 const SCRIPT_URL_KEY = 'google_sheet_script_url';
-// Defunct script URL that returns 404
+
+// Default active Google Apps Script Web App URL for Coinvest
+export const DEFAULT_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbyzG6zXxcjjE22xuV6x8aAJIvzyGZrQjb8xxaUX89WTjvVU5f4werbEeutRqVfJCl0/exec';
+
+// Defunct script URLs that return 404
 const DEFUNCT_SCRIPT_URLS = [
   'https://script.google.com/macros/s/AKfycbyPwuNKXlQz07PIIf5ckBeTv6Ix_RfUFjgPc7AaMnZKOFMJa4CMwza7_72DFETNK_0/exec',
 ];
 
 export const googleSheetsService = {
-  // Config: Use LocalStorage if set and valid, otherwise empty string (Local Storage mode)
+  // Config: Read custom URL, query param, env var, or fallback to default production script URL
   getUrl: (): string => {
     try {
-      const stored = localStorage.getItem(SCRIPT_URL_KEY);
-      if (stored && DEFUNCT_SCRIPT_URLS.includes(stored.trim())) {
-        localStorage.removeItem(SCRIPT_URL_KEY);
-        return '';
+      // 1. URL parameter (?sync=... or ?scriptUrl=...) for quick cross-device link sharing
+      if (typeof window !== 'undefined' && window.location?.search) {
+        const params = new URLSearchParams(window.location.search);
+        const paramUrl = params.get('sync') || params.get('scriptUrl');
+        if (paramUrl && paramUrl.startsWith('http') && !DEFUNCT_SCRIPT_URLS.includes(paramUrl.trim())) {
+          localStorage.setItem(SCRIPT_URL_KEY, paramUrl.trim());
+          return paramUrl.trim();
+        }
       }
-      return stored?.trim() || '';
+
+      // 2. Vite environment variable if set
+      const envUrl = (import.meta as any).env?.VITE_GOOGLE_SCRIPT_URL;
+      if (envUrl && typeof envUrl === 'string' && envUrl.startsWith('http') && !DEFUNCT_SCRIPT_URLS.includes(envUrl.trim())) {
+        return envUrl.trim();
+      }
+
+      // 3. LocalStorage
+      const stored = localStorage.getItem(SCRIPT_URL_KEY);
+      if (stored !== null) {
+        const trimmed = stored.trim();
+        if (DEFUNCT_SCRIPT_URLS.includes(trimmed)) {
+          localStorage.removeItem(SCRIPT_URL_KEY);
+          return DEFAULT_SCRIPT_URL;
+        }
+        if (trimmed === 'local' || trimmed === 'offline') {
+          return ''; // User explicitly selected offline/local mode
+        }
+        if (trimmed.length > 0) {
+          return trimmed;
+        }
+      }
+
+      // 4. Default to live verified Google Apps Script cloud URL
+      return DEFAULT_SCRIPT_URL;
     } catch {
-      return '';
+      return DEFAULT_SCRIPT_URL;
     }
   },
   
@@ -34,6 +66,15 @@ export const googleSheetsService = {
   },
 
   resetUrl: () => {
+    try {
+      // Explicitly mark as local mode
+      localStorage.setItem(SCRIPT_URL_KEY, 'local');
+    } catch {
+      // ignore
+    }
+  },
+
+  restoreDefaultUrl: () => {
     try {
       localStorage.removeItem(SCRIPT_URL_KEY);
     } catch {
